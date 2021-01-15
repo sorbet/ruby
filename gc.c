@@ -4902,6 +4902,7 @@ mark_method_entry(rb_objspace_t *objspace, const rb_method_entry_t *me)
 	  case VM_METHOD_TYPE_OPTIMIZED:
 	  case VM_METHOD_TYPE_UNDEF:
 	  case VM_METHOD_TYPE_NOTIMPLEMENTED:
+	  case VM_METHOD_TYPE_SORBET:
 	    break;
 	}
     }
@@ -8031,6 +8032,7 @@ gc_ref_update_method_entry(rb_objspace_t *objspace, rb_method_entry_t *me)
           case VM_METHOD_TYPE_OPTIMIZED:
           case VM_METHOD_TYPE_UNDEF:
           case VM_METHOD_TYPE_NOTIMPLEMENTED:
+          case VM_METHOD_TYPE_SORBET:
             break;
         }
     }
@@ -11413,6 +11415,7 @@ rb_method_type_name(rb_method_type_t type)
       case VM_METHOD_TYPE_ALIAS:          return "alias";
       case VM_METHOD_TYPE_REFINED:        return "refined";
       case VM_METHOD_TYPE_CFUNC:          return "cfunc";
+      case VM_METHOD_TYPE_SORBET:         return "sorbet";
       case VM_METHOD_TYPE_ZSUPER:         return "zsuper";
       case VM_METHOD_TYPE_MISSING:        return "missing";
       case VM_METHOD_TYPE_OPTIMIZED:      return "optimized";

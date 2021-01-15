@@ -105,6 +105,59 @@ vm_call0_cfunc(rb_execution_context_t *ec, struct rb_calling_info *calling, stru
     return vm_call0_cfunc_with_frame(ec, calling, cd, argv);
 }
 
+static VALUE
+vm_call0_sorbet_with_frame(rb_execution_context_t* ec, struct rb_calling_info *calling, struct rb_call_data *cd, const VALUE *argv)
+{
+    const struct rb_call_info *ci = &cd->ci;
+    const struct rb_call_cache *cc = &cd->cc;
+    VALUE val;
+    const rb_callable_method_entry_t *me = cc->me;
+    const rb_method_sorbet_t *sorbet = UNALIGNED_MEMBER_PTR(me->def, body.sorbet);
+
+    VALUE recv = calling->recv;
+    int argc = calling->argc;
+    ID mid = ci->mid;
+    VALUE block_handler = calling->block_handler;
+    /* We are close enough to VM_METHOD_TYPE_CFUNC that we claim our frames are C function frames */
+    int frame_flags = VM_FRAME_MAGIC_CFUNC | VM_FRAME_FLAG_CFRAME | VM_ENV_FLAG_LOCAL;
+
+    if (calling->kw_splat) {
+        if (argc > 0 && RB_TYPE_P(argv[argc-1], T_HASH) && RHASH_EMPTY_P(argv[argc-1])) {
+            frame_flags |= VM_FRAME_FLAG_CFRAME_EMPTY_KW;
+            argc--;
+        }
+        else {
+            frame_flags |= VM_FRAME_FLAG_CFRAME_KW;
+        }
+    }
+
+    RUBY_DTRACE_CMETHOD_ENTRY_HOOK(ec, me->owner, me->def->original_id);
+    EXEC_EVENT_HOOK(ec, RUBY_EVENT_C_CALL, recv, me->def->original_id, mid, me->owner, Qnil);
+    {
+	rb_control_frame_t *reg_cfp = ec->cfp;
+
+        vm_push_frame(ec, 0, frame_flags, recv,
+		      block_handler, (VALUE)me,
+		      0, reg_cfp->sp, 0, 0);
+
+        /* TODO: eventually we want to pass cd in here to assist with kwargs parsing */
+        val = (*sorbet->func)(argc, argv, recv);
+
+	CHECK_CFP_CONSISTENCY("vm_call0_sorbet_with_frame");
+	rb_vm_pop_frame(ec);
+    }
+    EXEC_EVENT_HOOK(ec, RUBY_EVENT_C_RETURN, recv, me->def->original_id, mid, me->owner, val);
+    RUBY_DTRACE_CMETHOD_RETURN_HOOK(ec, me->owner, me->def->original_id);
+
+    return val;
+}
+
+static VALUE
+vm_call0_sorbet(rb_execution_context_t *ec, struct rb_calling_info *calling, struct rb_call_data *cd, const VALUE *argv)
+{
+    return vm_call0_sorbet_with_frame(ec, calling, cd, argv);
+}
+
 /* `ci' should point temporal value (on stack value) */
 static VALUE
 vm_call0_body(rb_execution_context_t *ec, struct rb_calling_info *calling, struct rb_call_data *cd, const VALUE *argv)
@@ -139,6 +192,9 @@ vm_call0_body(rb_execution_context_t *ec, struct rb_calling_info *calling, struc
       case VM_METHOD_TYPE_CFUNC:
         ret = vm_call0_cfunc(ec, calling, cd, argv);
 	goto success;
+      case VM_METHOD_TYPE_SORBET:
+        ret = vm_call0_sorbet(ec, calling, cd, argv);
+        goto success;
       case VM_METHOD_TYPE_ATTRSET:
         if (calling->kw_splat &&
                 calling->argc > 0 &&

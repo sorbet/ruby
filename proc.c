@@ -2546,6 +2546,10 @@ rb_method_entry_min_max_arity(const rb_method_entry_t *me, int *max)
       case VM_METHOD_TYPE_REFINED:
 	*max = UNLIMITED_ARGUMENTS;
 	return 0;
+      case VM_METHOD_TYPE_SORBET:
+        /* TODO(froydnj): at some point, we want argument information for these. */
+        *max = UNLIMITED_ARGUMENTS;
+        return 0;
     }
     rb_bug("rb_method_entry_min_max_arity: invalid method entry type (%d)", def->type);
     UNREACHABLE_RETURN(Qnil);
@@ -2682,6 +2686,7 @@ method_def_iseq(const rb_method_definition_t *def)
       case VM_METHOD_TYPE_OPTIMIZED:
       case VM_METHOD_TYPE_MISSING:
       case VM_METHOD_TYPE_REFINED:
+      case VM_METHOD_TYPE_SORBET:
 	break;
     }
     return NULL;

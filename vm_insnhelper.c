@@ -2469,6 +2469,7 @@ vm_method_cfunc_entry(const rb_callable_method_entry_t *me)
 	METHOD_BUG(MISSING);
 	METHOD_BUG(REFINED);
 	METHOD_BUG(ALIAS);
+	METHOD_BUG(SORBET);
 # undef METHOD_BUG
       default:
 	rb_bug("wrong method type: %d", me->def->type);
@@ -2538,6 +2539,70 @@ vm_call_cfunc(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp, struct rb
     }
     return vm_call_cfunc_with_frame(ec, reg_cfp, calling, cd, empty_kw_splat);
 }
+
+/* -- Remove empty_kw_splat In 3.0 -- */
+static VALUE
+vm_call_sorbet_with_frame(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp, struct rb_calling_info *calling, struct rb_call_data *cd, int empty_kw_splat)
+{
+    const struct rb_call_info *ci = &cd->ci;
+    const struct rb_call_cache *cc = &cd->cc;
+    VALUE val;
+    const rb_callable_method_entry_t *me = cc->me;
+    /* TODO: verify this is a VM_METHOD_TYPE_SORBET? */
+    const rb_method_sorbet_t *sorbet = UNALIGNED_MEMBER_PTR(me->def, body.sorbet);
+
+    VALUE recv = calling->recv;
+    VALUE block_handler = calling->block_handler;
+    /* We are close enough to VM_METHOD_TYPE_CFUNC that we claim our frames are C function frames */
+    VALUE frame_type = VM_FRAME_MAGIC_CFUNC | VM_FRAME_FLAG_CFRAME | VM_ENV_FLAG_LOCAL;
+    int argc = calling->argc;
+    int orig_argc = argc;
+
+    if (UNLIKELY(calling->kw_splat)) {
+        frame_type |= VM_FRAME_FLAG_CFRAME_KW;
+    }
+    else if (UNLIKELY(empty_kw_splat)) {
+        frame_type |= VM_FRAME_FLAG_CFRAME_EMPTY_KW;
+    }
+
+    RUBY_DTRACE_CMETHOD_ENTRY_HOOK(ec, me->owner, me->def->original_id);
+    EXEC_EVENT_HOOK(ec, RUBY_EVENT_C_CALL, recv, me->def->original_id, ci->mid, me->owner, Qundef);
+
+    vm_push_frame(ec, NULL, frame_type, recv,
+		  block_handler, (VALUE)me,
+		  0, ec->cfp->sp, 0, 0);
+
+    reg_cfp->sp -= orig_argc + 1;
+    /* TODO: eventually we want to pass cd in here to assist with kwargs parsing */
+    val = (*sorbet->func)(argc, reg_cfp->sp + 1, recv);
+
+    CHECK_CFP_CONSISTENCY("vm_call_sorbet");
+
+    rb_vm_pop_frame(ec);
+
+    EXEC_EVENT_HOOK(ec, RUBY_EVENT_C_RETURN, recv, me->def->original_id, ci->mid, me->owner, val);
+    RUBY_DTRACE_CMETHOD_RETURN_HOOK(ec, me->owner, me->def->original_id);
+
+    return val;
+}
+
+static VALUE
+vm_call_sorbet(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp, struct rb_calling_info *calling, struct rb_call_data *cd)
+{
+    const struct rb_call_info *ci = &cd->ci;
+    int empty_kw_splat;
+    RB_DEBUG_COUNTER_INC(ccf_cfunc);
+
+    /* TODO: we'll want to tweak this to not munge the send args. */
+    CALLER_SETUP_ARG(reg_cfp, calling, ci);
+    empty_kw_splat = calling->kw_splat;
+    CALLER_REMOVE_EMPTY_KW_SPLAT(reg_cfp, calling, ci);
+    if (empty_kw_splat && calling->kw_splat) {
+        empty_kw_splat = 0;
+    }
+    return vm_call_sorbet_with_frame(ec, reg_cfp, calling, cd, empty_kw_splat);
+}
+
 
 static VALUE
 vm_call_ivar(rb_execution_context_t *ec, rb_control_frame_t *cfp, struct rb_calling_info *calling, struct rb_call_data *cd)
@@ -2923,6 +2988,10 @@ vm_call_method_each_type(rb_execution_context_t *ec, rb_control_frame_t *cfp, st
       case VM_METHOD_TYPE_CFUNC:
         CC_SET_FASTPATH(cc, vm_call_cfunc, TRUE);
         return vm_call_cfunc(ec, cfp, calling, cd);
+
+      case VM_METHOD_TYPE_SORBET:
+        CC_SET_FASTPATH(cc, vm_call_sorbet, TRUE);
+        return vm_call_sorbet(ec, cfp, calling, cd);
 
       case VM_METHOD_TYPE_ATTRSET:
         CALLER_SETUP_ARG(cfp, calling, ci);

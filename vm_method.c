@@ -145,6 +145,20 @@ rb_add_method_cfunc(VALUE klass, ID mid, VALUE (*func)(ANYARGS), int argc, rb_me
     }
 }
 
+void
+rb_add_method_sorbet(VALUE klass, ID mid, VALUE (*func)(ANYARGS), int argc, rb_method_visibility_t visi)
+{
+    if (argc != -1) rb_raise(rb_eArgError, "Incorrect arity for sorbet method");
+    if (func == rb_f_notimplement) {
+        rb_define_notimplement_method_id(klass, mid, visi);
+    }
+    else {
+        rb_method_sorbet_t opt;
+        opt.func = func;
+        rb_add_method(klass, mid, VM_METHOD_TYPE_SORBET, &opt, visi);
+    }
+}
+
 static void
 rb_method_definition_release(rb_method_definition_t *def, int complemented)
 {
@@ -228,6 +242,12 @@ setup_method_cfunc_struct(rb_method_cfunc_t *cfunc, VALUE (*func)(), int argc)
     cfunc->invoker = call_cfunc_invoker_func(argc);
 }
 
+static void
+setup_method_sorbet_struct(rb_method_sorbet_t *sorbet, VALUE (*func)())
+{
+    sorbet->func = func;
+}
+
 MJIT_FUNC_EXPORTED void
 rb_method_definition_set(const rb_method_entry_t *me, rb_method_definition_t *def, void *opts)
 {
@@ -259,6 +279,12 @@ rb_method_definition_set(const rb_method_entry_t *me, rb_method_definition_t *de
 	    {
 		rb_method_cfunc_t *cfunc = (rb_method_cfunc_t *)opts;
 		setup_method_cfunc_struct(UNALIGNED_MEMBER_PTR(def, body.cfunc), cfunc->func, cfunc->argc);
+		return;
+	    }
+	  case VM_METHOD_TYPE_SORBET:
+	    {
+		rb_method_sorbet_t *sorbet = (rb_method_sorbet_t *)opts;
+		setup_method_sorbet_struct(UNALIGNED_MEMBER_PTR(def, body.sorbet), sorbet->func);
 		return;
 	    }
 	  case VM_METHOD_TYPE_ATTRSET:
@@ -340,6 +366,7 @@ method_definition_reset(const rb_method_entry_t *me)
       case VM_METHOD_TYPE_OPTIMIZED:
       case VM_METHOD_TYPE_UNDEF:
       case VM_METHOD_TYPE_NOTIMPLEMENTED:
+      case VM_METHOD_TYPE_SORBET:
 	break;
     }
 }
@@ -1530,6 +1557,8 @@ rb_method_definition_eq(const rb_method_definition_t *d1, const rb_method_defini
 	return 1;
       case VM_METHOD_TYPE_OPTIMIZED:
 	return d1->body.optimize_type == d2->body.optimize_type;
+      case VM_METHOD_TYPE_SORBET:
+        return d1->body.sorbet.func == d2->body.sorbet.func;
       case VM_METHOD_TYPE_REFINED:
       case VM_METHOD_TYPE_ALIAS:
 	break;
@@ -1564,6 +1593,8 @@ rb_hash_method_definition(st_index_t hash, const rb_method_definition_t *def)
 	return hash;
       case VM_METHOD_TYPE_OPTIMIZED:
 	return rb_hash_uint(hash, def->body.optimize_type);
+      case VM_METHOD_TYPE_SORBET:
+        return rb_hash_uint(hash, (st_index_t)def->body.sorbet.func);
       case VM_METHOD_TYPE_REFINED:
       case VM_METHOD_TYPE_ALIAS:
 	break; /* unreachable */

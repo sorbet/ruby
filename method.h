@@ -101,6 +101,7 @@ METHOD_ENTRY_FLAGS_COPY(rb_method_entry_t *dst, const rb_method_entry_t *src)
 typedef enum {
     VM_METHOD_TYPE_ISEQ,      /*!< Ruby method */
     VM_METHOD_TYPE_CFUNC,     /*!< C method */
+    VM_METHOD_TYPE_SORBET,
     VM_METHOD_TYPE_ATTRSET,   /*!< attr_writer or attr_accessor */
     VM_METHOD_TYPE_IVAR,      /*!< attr_reader or attr_accessor */
     VM_METHOD_TYPE_BMETHOD,
@@ -133,6 +134,12 @@ typedef struct rb_method_cfunc_struct {
     VALUE (*invoker)(VALUE recv, int argc, const VALUE *argv, VALUE (*func)(ANYARGS));
     int argc;
 } rb_method_cfunc_t;
+
+typedef struct rb_method_sorbet_struct {
+    VALUE (*func)(ANYARGS);
+    /* no need for invoker, since there's only the (recv, argc, argv) call style */
+    /* similarly, no need for argc */
+} rb_method_sorbet_t;
 
 typedef struct rb_method_attr_struct {
     ID id;
@@ -168,6 +175,7 @@ struct rb_method_definition_struct {
     union {
         rb_method_iseq_t iseq;
         rb_method_cfunc_t cfunc;
+        rb_method_sorbet_t sorbet;
         rb_method_attr_t attr;
         rb_method_alias_t alias;
         rb_method_refined_t refined;
@@ -189,6 +197,7 @@ STATIC_ASSERT(sizeof_method_def, offsetof(rb_method_definition_t, body)==8);
      UNDEFINED_METHOD_ENTRY_P((def)->body.refined.orig_me))
 
 void rb_add_method_cfunc(VALUE klass, ID mid, VALUE (*func)(ANYARGS), int argc, rb_method_visibility_t visi);
+void rb_add_method_sorbet(VALUE klass, ID mid, VALUE (*func)(ANYARGS), int argc, rb_method_visibility_t visi);
 void rb_add_method_iseq(VALUE klass, ID mid, const rb_iseq_t *iseq, rb_cref_t *cref, rb_method_visibility_t visi);
 void rb_add_refined_method_entry(VALUE refined_class, ID mid);
 void rb_add_method(VALUE klass, ID mid, rb_method_type_t type, void *option, rb_method_visibility_t visi);
