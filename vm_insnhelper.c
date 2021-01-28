@@ -2568,9 +2568,10 @@ vm_call_sorbet_with_frame(rb_execution_context_t *ec, rb_control_frame_t *reg_cf
     RUBY_DTRACE_CMETHOD_ENTRY_HOOK(ec, me->owner, me->def->original_id);
     EXEC_EVENT_HOOK(ec, RUBY_EVENT_C_CALL, recv, me->def->original_id, ci->mid, me->owner, Qundef);
 
+    /* TODO(froydnj): should we adjust locals_size based on number of args we're passing? */
     vm_push_frame(ec, NULL, frame_type, recv,
 		  block_handler, (VALUE)me,
-		  0, ec->cfp->sp, 0, 0);
+		  0, ec->cfp->sp, sorbet->locals_size, sorbet->stack_max);
 
     reg_cfp->sp -= orig_argc + 1;
     /* TODO: eventually we want to pass cd in here to assist with kwargs parsing */
