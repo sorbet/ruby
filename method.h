@@ -141,6 +141,11 @@ typedef struct rb_method_sorbet_struct {
     /* no need for invoker, since there's only the (recv, argc, argv) call style */
     /* similarly, no need for argc */
 
+    rb_iseq_t *iseqptr;
+    /* We load these out of iseqptr to save indirections when they are needed.
+     * The size of the struct is therefore no bigger than rb_method_cfunc_struct
+     * (on 64-bit platforms) due to structure padding and how things pack.
+     */
     int locals_size; /* cf. rb_iseq_constant_body::local_table_size */
     int stack_max; /* cf. rb_iseq_constant_body::stack_max */
 } rb_method_sorbet_t;
@@ -201,7 +206,7 @@ STATIC_ASSERT(sizeof_method_def, offsetof(rb_method_definition_t, body)==8);
      UNDEFINED_METHOD_ENTRY_P((def)->body.refined.orig_me))
 
 void rb_add_method_cfunc(VALUE klass, ID mid, VALUE (*func)(ANYARGS), int argc, rb_method_visibility_t visi);
-void rb_add_method_sorbet(VALUE klass, ID mid, VALUE (*func)(ANYARGS), int argc, rb_method_visibility_t visi, int locals_size, int stack_max);
+void rb_add_method_sorbet(VALUE klass, ID mid, VALUE (*func)(ANYARGS), int argc, rb_method_visibility_t visi, void *iseqptr);
 void rb_add_method_iseq(VALUE klass, ID mid, const rb_iseq_t *iseq, rb_cref_t *cref, rb_method_visibility_t visi);
 void rb_add_refined_method_entry(VALUE refined_class, ID mid);
 void rb_add_method(VALUE klass, ID mid, rb_method_type_t type, void *option, rb_method_visibility_t visi);

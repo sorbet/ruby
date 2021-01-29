@@ -136,7 +136,7 @@ vm_call0_sorbet_with_frame(rb_execution_context_t* ec, struct rb_calling_info *c
     {
 	rb_control_frame_t *reg_cfp = ec->cfp;
 
-        vm_push_frame(ec, 0, frame_flags, recv,
+        vm_push_frame(ec, sorbet->iseqptr, frame_flags, recv,
 		      block_handler, (VALUE)me,
 		      0, reg_cfp->sp, sorbet->locals_size, sorbet->stack_max);
 
