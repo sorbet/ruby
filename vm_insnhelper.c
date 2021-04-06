@@ -2566,7 +2566,7 @@ vm_call_sorbet_with_frame(rb_execution_context_t *ec, rb_control_frame_t *reg_cf
     }
 
     RUBY_DTRACE_CMETHOD_ENTRY_HOOK(ec, me->owner, me->def->original_id);
-    EXEC_EVENT_HOOK(ec, RUBY_EVENT_C_CALL, recv, me->def->original_id, ci->mid, me->owner, Qundef);
+    /*EXEC_EVENT_HOOK(ec, RUBY_EVENT_C_CALL, recv, me->def->original_id, ci->mid, me->owner, Qundef);*/
 
     /* TODO(froydnj): should we adjust locals_size based on number of args we're passing? */
     vm_push_frame(ec, sorbet->iseqptr, frame_type, recv,
@@ -2581,7 +2581,7 @@ vm_call_sorbet_with_frame(rb_execution_context_t *ec, rb_control_frame_t *reg_cf
 
     rb_vm_pop_frame(ec);
 
-    EXEC_EVENT_HOOK(ec, RUBY_EVENT_C_RETURN, recv, me->def->original_id, ci->mid, me->owner, val);
+    /*EXEC_EVENT_HOOK(ec, RUBY_EVENT_C_RETURN, recv, me->def->original_id, ci->mid, me->owner, val);*/
     RUBY_DTRACE_CMETHOD_RETURN_HOOK(ec, me->owner, me->def->original_id);
 
     return val;
