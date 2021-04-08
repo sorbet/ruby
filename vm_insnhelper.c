@@ -2541,6 +2541,45 @@ vm_call_cfunc(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp, struct rb
     return vm_call_cfunc_with_frame(ec, reg_cfp, calling, cd, empty_kw_splat);
 }
 
+/* cf. rb_simple_iseq_p, but we store our parameter information differently */
+static bool
+vm_call_sorbet_simple_p(const rb_method_sorbet_t *sorbet)
+{
+    return sorbet->param->flags.has_opt == FALSE &&
+        sorbet->param->flags.has_rest == FALSE &&
+        sorbet->param->flags.has_post == FALSE &&
+        sorbet->param->flags.has_kw == FALSE &&
+        sorbet->param->flags.has_kwrest == FALSE &&
+        sorbet->param->flags.accepts_no_kwarg == FALSE &&
+        sorbet->param->flags.has_block == FALSE;
+}
+
+/* This call combines vm_call_iseq_optimizable_p and logic in vm_callee_setup_arg */
+static bool
+vm_call_sorbet_optimizable_p(const struct rb_call_info *ci, const struct rb_call_cache *cc,
+                             const rb_method_sorbet_t *sorbet)
+{
+    if (!vm_call_iseq_optimizable_p(ci, cc)) {
+        return false;
+    }
+
+    /* vm_callee_setup_arg */
+    if (UNLIKELY(ci->flag & VM_CALL_KW_SPLAT)) {
+        return false;
+    }
+
+    /* We only handle simple calls to functions with required args, unlike
+     * vm_callee_setup_arg */
+    if (!vm_call_sorbet_simple_p(sorbet)) {
+        return false;
+    }
+
+    /* This callsite is to a method that only takes required arguments. */
+    /* TODO: change this to handle more of the cases that vm_callee_setup_arg does,
+     * like optarg-only and kwarg-only functions.  */
+    return true;
+}
+
 /* -- Remove empty_kw_splat In 3.0 -- */
 static inline VALUE
 vm_call_sorbet_with_frame_normal(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp, struct rb_calling_info *calling, const rb_callable_method_entry_t *me, int check_kw_splat, int empty_kw_splat, int param_size, int local_size)
@@ -2849,6 +2888,50 @@ vm_call_sorbet(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp, struct r
     return vm_call_sorbet_with_frame(ec, reg_cfp, calling, cd, empty_kw_splat);
 }
 
+/* At this point, we've already determined that the method we're calling is a
+ * Sorbet method, and we have a fastpath to call vm_call_sorbet in place.
+ * Depending on the particular function we're calling, we might be able to do
+ * better, which is what this function is trying to decide.
+ */
+static VALUE
+vm_call_sorbet_maybe_setup_fastpath(rb_execution_context_t *ec, rb_control_frame_t *cfp, struct rb_calling_info *calling, struct rb_call_data *cd)
+{
+    const struct rb_call_info *ci = &cd->ci;
+    struct rb_call_cache *cc = &cd->cc;
+    const rb_method_sorbet_t *sorbet = UNALIGNED_MEMBER_PTR(cc->me->def, body.sorbet);
+
+    /* Just take the normal path, we'll call vm_call_sorbet directly next time. */
+    if (!vm_call_sorbet_optimizable_p(ci, cc, sorbet)) {
+        return vm_call_sorbet(ec, cfp, calling, cd);
+    }
+
+    /* We know that the method we're calling takes only required arguments.
+     * But we need to verify that the method is being passed only required
+     * arguments and there aren't any kwarg fixups that we need to do.  We
+     * only need to do this once, cf. vm_callee_setup_arg.
+     */
+    CALLER_SETUP_ARG(cfp, calling, ci);
+    int empty_kw_splat = calling->kw_splat;
+    CALLER_REMOVE_EMPTY_KW_SPLAT(cfp, calling, ci);
+    if (empty_kw_splat && calling->kw_splat) {
+        empty_kw_splat = 0;
+    }
+
+    if (UNLIKELY(calling->argc != sorbet->param->lead_num)) {
+        /* vm_callee_setup_arg calls argument_arity_error, but our iseq is not
+         * set up in the way that function expects.  We don't declare and call
+         * sorbet_raiseArity here because it's nice to have a Ruby with just
+         * the Sorbet calling convention patches applied be able to compile
+         * and run Ruby's testsuite.  Instead, just call the function "normally"
+         * and let the argument checking in the function itself handle raising
+         * the error.
+         */
+        return vm_call_sorbet_with_frame(ec, cfp, calling, cd, empty_kw_splat);
+    }
+
+    CC_SET_FASTPATH(cc, vm_call_sorbet_fast_func(ci, sorbet->param->size, sorbet->iseqptr->body->local_table_size), TRUE);
+    return vm_call_sorbet(ec, cfp, calling, cd);
+}
 
 static VALUE
 vm_call_ivar(rb_execution_context_t *ec, rb_control_frame_t *cfp, struct rb_calling_info *calling, struct rb_call_data *cd)
@@ -3237,7 +3320,7 @@ vm_call_method_each_type(rb_execution_context_t *ec, rb_control_frame_t *cfp, st
 
       case VM_METHOD_TYPE_SORBET:
         CC_SET_FASTPATH(cc, vm_call_sorbet, TRUE);
-        return vm_call_sorbet(ec, cfp, calling, cd);
+        return vm_call_sorbet_maybe_setup_fastpath(ec, cfp, calling, cd);
 
       case VM_METHOD_TYPE_ATTRSET:
         CALLER_SETUP_ARG(cfp, calling, ci);
