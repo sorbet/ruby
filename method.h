@@ -135,19 +135,78 @@ typedef struct rb_method_cfunc_struct {
     int argc;
 } rb_method_cfunc_t;
 
+typedef struct rb_sorbet_param_struct {
+    /**
+     * parameter information
+     *
+     *  def m(a1, a2, ..., aM,                    # mandatory
+     *        b1=(...), b2=(...), ..., bN=(...),  # optional
+     *        *c,                                 # rest
+     *        d1, d2, ..., dO,                    # post
+     *        e1:(...), e2:(...), ..., eK:(...),  # keyword
+     *        **f,                                # keyword_rest
+     *        &g)                                 # block
+     * =>
+     *
+     *  lead_num     = M
+     *  opt_num      = N
+     *  rest_start   = M+N
+     *  post_start   = M+N+(*1)
+     *  post_num     = O
+     *  keyword_num  = K
+     *  block_start  = M+N+(*1)+O+K
+     *  keyword_bits = M+N+(*1)+O+K+(&1)
+     *  size         = M+N+O+(*1)+K+(&1)+(**1) // parameter size.
+     */
+
+    struct {
+        unsigned int has_lead   : 1;
+        unsigned int has_opt    : 1;
+        unsigned int has_rest   : 1;
+        unsigned int has_post   : 1;
+        unsigned int has_kw     : 1;
+        unsigned int has_kwrest : 1;
+        unsigned int has_block  : 1;
+
+        unsigned int ambiguous_param0 : 1; /* {|a|} */
+        unsigned int accepts_no_kwarg : 1;
+        unsigned int ruby2_keywords: 1;
+    } flags;
+
+    unsigned int size;
+
+    int lead_num;
+    int opt_num;
+    int rest_start;
+    int post_start;
+    int post_num;
+    int block_start;
+
+    /* M + N entries.  This is similar to rb_iseq_constant_body.local_table, but
+     * Sorbet optimizes that to only include the variables that escape, so it is
+     * not suited to describing parameter information for functions.
+     */
+    const ID *pos_table;
+
+    /* Similar to rb_iseq_param_keyword, but inlined into the parent structure
+     * so we don't need a separate allocation.  We also don't need to track
+     * information about default values here.
+     */
+    int kw_num;
+    int kw_required_num;
+    int kw_bits_start;
+    int kw_rest_start;
+    const ID *kw_table;
+} rb_sorbet_param_t;
+
 typedef struct rb_method_sorbet_struct {
     /* cf. rb_method_cfunc_struct */
     VALUE (*func)(ANYARGS);
     /* no need for invoker, since there's only the (recv, argc, argv) call style */
     /* similarly, no need for argc */
 
+    const rb_sorbet_param_t *param; /* cf. rb_iseq_constant_body.param */
     rb_iseq_t *iseqptr;
-    /* We load these out of iseqptr to save indirections when they are needed.
-     * The size of the struct is therefore no bigger than rb_method_cfunc_struct
-     * (on 64-bit platforms) due to structure padding and how things pack.
-     */
-    int locals_size; /* cf. rb_iseq_constant_body::local_table_size */
-    int stack_max; /* cf. rb_iseq_constant_body::stack_max */
 } rb_method_sorbet_t;
 
 typedef struct rb_method_attr_struct {
@@ -206,7 +265,7 @@ STATIC_ASSERT(sizeof_method_def, offsetof(rb_method_definition_t, body)==8);
      UNDEFINED_METHOD_ENTRY_P((def)->body.refined.orig_me))
 
 void rb_add_method_cfunc(VALUE klass, ID mid, VALUE (*func)(ANYARGS), int argc, rb_method_visibility_t visi);
-void rb_add_method_sorbet(VALUE klass, ID mid, VALUE (*func)(ANYARGS), int argc, rb_method_visibility_t visi, void *iseqptr);
+void rb_add_method_sorbet(VALUE klass, ID mid, VALUE (*func)(ANYARGS), const rb_sorbet_param_t *param, int argc, rb_method_visibility_t visi, void *iseqptr);
 void rb_add_method_iseq(VALUE klass, ID mid, const rb_iseq_t *iseq, rb_cref_t *cref, rb_method_visibility_t visi);
 void rb_add_refined_method_entry(VALUE refined_class, ID mid);
 void rb_add_method(VALUE klass, ID mid, rb_method_type_t type, void *option, rb_method_visibility_t visi);

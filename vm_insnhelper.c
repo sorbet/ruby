@@ -2542,7 +2542,7 @@ vm_call_cfunc(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp, struct rb
 }
 
 /* -- Remove empty_kw_splat In 3.0 -- */
-static VALUE
+static inline VALUE
 vm_call_sorbet_with_frame_normal(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp, struct rb_calling_info *calling, const rb_callable_method_entry_t *me, int check_kw_splat, int empty_kw_splat, int param_size, int local_size)
 {
     VALUE val;
@@ -2568,7 +2568,7 @@ vm_call_sorbet_with_frame_normal(rb_execution_context_t *ec, rb_control_frame_t 
 
     vm_push_frame(ec, sorbet->iseqptr, frame_type, recv,
                   block_handler, (VALUE)me,
-                  0, ec->cfp->sp, local_size, sorbet->stack_max);
+                  0, ec->cfp->sp, local_size, sorbet->iseqptr->body->stack_max);
 
     reg_cfp->sp -= argc + 1;
     /* TODO: eventually we want to pass cd in here to assist with kwargs parsing */
@@ -2829,7 +2829,7 @@ vm_call_sorbet_with_frame(rb_execution_context_t *ec, rb_control_frame_t *reg_cf
     const rb_callable_method_entry_t *me = cd->cc.me;
     /* TODO: verify this is a VM_METHOD_TYPE_SORBET? */
     const rb_method_sorbet_t *sorbet = UNALIGNED_MEMBER_PTR(me->def, body.sorbet);
-    return vm_call_sorbet_with_frame_normal(ec, reg_cfp, calling, me, check_kw_splat, empty_kw_splat, calling->argc, sorbet->locals_size);
+    return vm_call_sorbet_with_frame_normal(ec, reg_cfp, calling, me, check_kw_splat, empty_kw_splat, calling->argc, sorbet->iseqptr->body->local_table_size);
 }
 
 static VALUE

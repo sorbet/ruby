@@ -138,7 +138,7 @@ vm_call0_sorbet_with_frame(rb_execution_context_t* ec, struct rb_calling_info *c
 
         vm_push_frame(ec, sorbet->iseqptr, frame_flags, recv,
 		      block_handler, (VALUE)me,
-		      0, reg_cfp->sp, sorbet->locals_size, sorbet->stack_max);
+		      0, reg_cfp->sp, sorbet->iseqptr->body->local_table_size, sorbet->iseqptr->body->stack_max);
 
         /* TODO: eventually we want to pass cd in here to assist with kwargs parsing */
         val = (*sorbet->func)(argc, argv, recv);

@@ -146,8 +146,7 @@ rb_add_method_cfunc(VALUE klass, ID mid, VALUE (*func)(ANYARGS), int argc, rb_me
 }
 
 void
-rb_add_method_sorbet(VALUE klass, ID mid, VALUE (*func)(ANYARGS), int argc, rb_method_visibility_t visi,
-                     void *iseqptr)
+rb_add_method_sorbet(VALUE klass, ID mid, VALUE (*func)(ANYARGS), const rb_sorbet_param_t *param, int argc, rb_method_visibility_t visi, void *iseqptr)
 {
     if (argc != -1) rb_raise(rb_eArgError, "Incorrect arity for sorbet method");
     if (func == rb_f_notimplement) {
@@ -156,9 +155,8 @@ rb_add_method_sorbet(VALUE klass, ID mid, VALUE (*func)(ANYARGS), int argc, rb_m
     else {
         rb_method_sorbet_t opt;
         opt.func = func;
+        opt.param = param;
         opt.iseqptr = (rb_iseq_t *)iseqptr;
-        opt.locals_size = opt.iseqptr->body->local_table_size;
-        opt.stack_max = opt.iseqptr->body->stack_max;
         rb_add_method(klass, mid, VM_METHOD_TYPE_SORBET, &opt, visi);
     }
 }
@@ -247,12 +245,11 @@ setup_method_cfunc_struct(rb_method_cfunc_t *cfunc, VALUE (*func)(), int argc)
 }
 
 static void
-setup_method_sorbet_struct(rb_method_sorbet_t *sorbet, VALUE (*func)(), rb_iseq_t *iseqptr, int locals_size, int stack_max)
+setup_method_sorbet_struct(rb_method_sorbet_t *sorbet, VALUE (*func)(), const rb_sorbet_param_t *param, rb_iseq_t *iseqptr)
 {
     sorbet->func = func;
+    sorbet->param = param;
     sorbet->iseqptr = iseqptr;
-    sorbet->locals_size = locals_size;
-    sorbet->stack_max = stack_max;
 }
 
 MJIT_FUNC_EXPORTED void
@@ -291,7 +288,7 @@ rb_method_definition_set(const rb_method_entry_t *me, rb_method_definition_t *de
 	  case VM_METHOD_TYPE_SORBET:
 	    {
 		rb_method_sorbet_t *sorbet = (rb_method_sorbet_t *)opts;
-		setup_method_sorbet_struct(UNALIGNED_MEMBER_PTR(def, body.sorbet), sorbet->func, sorbet->iseqptr, sorbet->locals_size, sorbet->stack_max);
+		setup_method_sorbet_struct(UNALIGNED_MEMBER_PTR(def, body.sorbet), sorbet->func, sorbet->param, sorbet->iseqptr);
 		return;
 	    }
 	  case VM_METHOD_TYPE_ATTRSET:
