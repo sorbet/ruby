@@ -2545,8 +2545,7 @@ vm_call_cfunc(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp, struct rb
 static bool
 vm_call_sorbet_simple_p(const rb_method_sorbet_t *sorbet)
 {
-    return sorbet->param->flags.has_opt == FALSE &&
-        sorbet->param->flags.has_rest == FALSE &&
+    return sorbet->param->flags.has_rest == FALSE &&
         sorbet->param->flags.has_post == FALSE &&
         sorbet->param->flags.has_kw == FALSE &&
         sorbet->param->flags.has_kwrest == FALSE &&
@@ -2568,15 +2567,15 @@ vm_call_sorbet_optimizable_p(const struct rb_call_info *ci, const struct rb_call
         return false;
     }
 
-    /* We only handle simple calls to functions with required args, unlike
+    /* We only handle simple calls to functions with positional args, unlike
      * vm_callee_setup_arg */
     if (!vm_call_sorbet_simple_p(sorbet)) {
         return false;
     }
 
-    /* This callsite is to a method that only takes required arguments. */
+    /* This callsite is to a method that only takes positional arguments. */
     /* TODO: change this to handle more of the cases that vm_callee_setup_arg does,
-     * like optarg-only and kwarg-only functions.  */
+     * like kwarg-only functions.  */
     return true;
 }
 
@@ -2905,8 +2904,8 @@ vm_call_sorbet_maybe_setup_fastpath(rb_execution_context_t *ec, rb_control_frame
         return vm_call_sorbet(ec, cfp, calling, cd);
     }
 
-    /* We know that the method we're calling takes only required arguments.
-     * But we need to verify that the method is being passed only required
+    /* We know that the method we're calling takes only positional arguments.
+     * But we need to verify that the method is being passed only positional
      * arguments and there aren't any kwarg fixups that we need to do.  We
      * only need to do this once, cf. vm_callee_setup_arg.
      */
