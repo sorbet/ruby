@@ -146,9 +146,8 @@ rb_add_method_cfunc(VALUE klass, ID mid, VALUE (*func)(ANYARGS), int argc, rb_me
 }
 
 void
-rb_add_method_sorbet(VALUE klass, ID mid, VALUE (*func)(ANYARGS), const rb_sorbet_param_t *param, int argc, rb_method_visibility_t visi, void *iseqptr)
+rb_add_method_sorbet(VALUE klass, ID mid, VALUE (*func)(int, VALUE *, VALUE), const rb_sorbet_param_t *param, rb_method_visibility_t visi, void *iseqptr)
 {
-    if (argc != -1) rb_raise(rb_eArgError, "Incorrect arity for sorbet method");
     if (func == rb_f_notimplement) {
         rb_define_notimplement_method_id(klass, mid, visi);
     }
@@ -245,7 +244,7 @@ setup_method_cfunc_struct(rb_method_cfunc_t *cfunc, VALUE (*func)(), int argc)
 }
 
 static void
-setup_method_sorbet_struct(rb_method_sorbet_t *sorbet, VALUE (*func)(), const rb_sorbet_param_t *param, rb_iseq_t *iseqptr)
+setup_method_sorbet_struct(rb_method_sorbet_t *sorbet, VALUE (*func)(int, VALUE*, VALUE), const rb_sorbet_param_t *param, rb_iseq_t *iseqptr)
 {
     sorbet->func = func;
     sorbet->param = param;

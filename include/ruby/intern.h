@@ -238,7 +238,7 @@ void rb_define_protected_method(VALUE, const char*, VALUE (*)(ANYARGS), int);
 void rb_define_private_method(VALUE, const char*, VALUE (*)(ANYARGS), int);
 void rb_define_singleton_method(VALUE, const char*, VALUE(*)(ANYARGS), int);
 /* included so we don't expose singleton_class_of outside of class.c */
-void rb_define_singleton_sorbet_method(VALUE, const char*, VALUE(*)(ANYARGS), const void *, int, void *);
+void rb_define_singleton_sorbet_method(VALUE, const char*, VALUE(*)(int, VALUE *, VALUE), const void *, void *);
 VALUE rb_singleton_class(VALUE);
 /* compar.c */
 int rb_cmpint(VALUE, VALUE, VALUE);

@@ -200,9 +200,9 @@ typedef struct rb_sorbet_param_struct {
 } rb_sorbet_param_t;
 
 typedef struct rb_method_sorbet_struct {
-    /* cf. rb_method_cfunc_struct */
-    VALUE (*func)(ANYARGS);
-    /* no need for invoker, since there's only the (recv, argc, argv) call style */
+    /* cf. rb_method_cfunc_struct, but we only support one argument style */
+    VALUE (*func)(int, VALUE *, VALUE);
+    /* no need for invoker, since there's only the (argc, argv, recv) call style */
     /* similarly, no need for argc */
 
     const rb_sorbet_param_t *param; /* cf. rb_iseq_constant_body.param */
@@ -265,7 +265,7 @@ STATIC_ASSERT(sizeof_method_def, offsetof(rb_method_definition_t, body)==8);
      UNDEFINED_METHOD_ENTRY_P((def)->body.refined.orig_me))
 
 void rb_add_method_cfunc(VALUE klass, ID mid, VALUE (*func)(ANYARGS), int argc, rb_method_visibility_t visi);
-void rb_add_method_sorbet(VALUE klass, ID mid, VALUE (*func)(ANYARGS), const rb_sorbet_param_t *param, int argc, rb_method_visibility_t visi, void *iseqptr);
+void rb_add_method_sorbet(VALUE klass, ID mid, VALUE (*func)(int, VALUE *, VALUE), const rb_sorbet_param_t *param, rb_method_visibility_t visi, void *iseqptr);
 void rb_add_method_iseq(VALUE klass, ID mid, const rb_iseq_t *iseq, rb_cref_t *cref, rb_method_visibility_t visi);
 void rb_add_refined_method_entry(VALUE refined_class, ID mid);
 void rb_add_method(VALUE klass, ID mid, rb_method_type_t type, void *option, rb_method_visibility_t visi);
