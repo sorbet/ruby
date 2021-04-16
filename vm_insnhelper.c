@@ -2929,6 +2929,10 @@ vm_call_sorbet_maybe_setup_fastpath(rb_execution_context_t *ec, rb_control_frame
         return vm_call_sorbet_with_frame(ec, cfp, calling, cd, empty_kw_splat);
     }
 
+    /* vm_call_method_each_type has already set the fastpath to vm_call_sorbet,
+     * which handles all of the cases above.  We've done all of those checks so that
+     * we know a different fastpath is available, which we set here.
+     */
     CC_SET_FASTPATH(cc, vm_call_sorbet_fast_func(ci, sorbet->param->size, sorbet->iseqptr->body->local_table_size), TRUE);
     return vm_call_sorbet(ec, cfp, calling, cd);
 }
