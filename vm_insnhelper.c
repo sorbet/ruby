@@ -2590,8 +2590,11 @@ vm_call_sorbet_with_frame_normal(rb_execution_context_t *ec, rb_control_frame_t 
 
     VALUE recv = calling->recv;
     VALUE block_handler = calling->block_handler;
-    /* We are close enough to VM_METHOD_TYPE_CFUNC that we claim our frames are C function frames */
-    VALUE frame_type = VM_FRAME_MAGIC_CFUNC | VM_FRAME_FLAG_CFRAME | VM_ENV_FLAG_LOCAL;
+    /* We are close enough to VM_METHOD_TYPE_CFUNC that we claim our frames are C function frames.
+     * We do not set VM_FRAME_MAGIC_CFRAME because we do maintain local variables that can
+     * be accessed by Binding#local_variables and that need to be accessed by blocks/closures.
+     */
+    VALUE frame_type = VM_FRAME_MAGIC_CFUNC | VM_ENV_FLAG_LOCAL;
     int argc = param_size;
 
     if (check_kw_splat) {
