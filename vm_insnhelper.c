@@ -2585,7 +2585,6 @@ static inline VALUE
 vm_call_sorbet_with_frame_normal(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp, struct rb_calling_info *calling, const rb_callable_method_entry_t *me, int check_kw_splat, int empty_kw_splat, int param_size, int local_size)
 {
     VALUE val;
-    /* TODO: verify this is a VM_METHOD_TYPE_SORBET? */
     const rb_method_sorbet_t *sorbet = UNALIGNED_MEMBER_PTR(me->def, body.sorbet);
 
     VALUE recv = calling->recv;
@@ -2869,7 +2868,6 @@ vm_call_sorbet_with_frame(rb_execution_context_t *ec, rb_control_frame_t *reg_cf
 {
     const int check_kw_splat = 1;
     const rb_callable_method_entry_t *me = cd->cc.me;
-    /* TODO: verify this is a VM_METHOD_TYPE_SORBET? */
     const rb_method_sorbet_t *sorbet = UNALIGNED_MEMBER_PTR(me->def, body.sorbet);
     return vm_call_sorbet_with_frame_normal(ec, reg_cfp, calling, me, check_kw_splat, empty_kw_splat, calling->argc, sorbet->iseqptr->body->local_table_size);
 }
@@ -2881,7 +2879,6 @@ vm_call_sorbet(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp, struct r
     int empty_kw_splat;
     RB_DEBUG_COUNTER_INC(ccf_cfunc);
 
-    /* TODO: we'll want to tweak this to not munge the send args. */
     CALLER_SETUP_ARG(reg_cfp, calling, ci);
     empty_kw_splat = calling->kw_splat;
     CALLER_REMOVE_EMPTY_KW_SPLAT(reg_cfp, calling, ci);
