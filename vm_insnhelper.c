@@ -2545,7 +2545,8 @@ vm_call_cfunc(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp, struct rb
 static bool
 vm_call_sorbet_simple_p(const rb_method_sorbet_t *sorbet)
 {
-    return sorbet->param->flags.has_rest == FALSE &&
+    return sorbet->param->flags.has_opt == FALSE &&
+        sorbet->param->flags.has_rest == FALSE &&
         sorbet->param->flags.has_post == FALSE &&
         sorbet->param->flags.has_kw == FALSE &&
         sorbet->param->flags.has_kwrest == FALSE &&
