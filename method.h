@@ -199,9 +199,11 @@ typedef struct rb_sorbet_param_struct {
     const ID *kw_table;
 } rb_sorbet_param_t;
 
+typedef VALUE (*rb_sorbet_func_t)(int, VALUE *, VALUE, struct rb_control_frame_struct *);
+
 typedef struct rb_method_sorbet_struct {
     /* cf. rb_method_cfunc_struct, but we only support one argument style */
-    VALUE (*func)(int, VALUE *, VALUE);
+    rb_sorbet_func_t func;
     /* no need for invoker, since there's only the (argc, argv, recv) call style */
     /* similarly, no need for argc */
 
@@ -265,7 +267,10 @@ STATIC_ASSERT(sizeof_method_def, offsetof(rb_method_definition_t, body)==8);
      UNDEFINED_METHOD_ENTRY_P((def)->body.refined.orig_me))
 
 void rb_add_method_cfunc(VALUE klass, ID mid, VALUE (*func)(ANYARGS), int argc, rb_method_visibility_t visi);
-void rb_add_method_sorbet(VALUE klass, ID mid, VALUE (*func)(int, VALUE *, VALUE), const rb_sorbet_param_t *param, rb_method_visibility_t visi, void *iseqptr);
+void rb_add_method_sorbet(VALUE klass, ID mid, rb_sorbet_func_t func, const rb_sorbet_param_t *param, rb_method_visibility_t visi, void *iseqptr);
+/* included so we don't expose singleton_class_of outside of class.c */
+/* we can't use rb_sorbet_func_t here because it's not exported */
+void rb_define_singleton_sorbet_method(VALUE, const char*, rb_sorbet_func_t, const void *, void *);
 void rb_add_method_iseq(VALUE klass, ID mid, const rb_iseq_t *iseq, rb_cref_t *cref, rb_method_visibility_t visi);
 void rb_add_refined_method_entry(VALUE refined_class, ID mid);
 void rb_add_method(VALUE klass, ID mid, rb_method_type_t type, void *option, rb_method_visibility_t visi);

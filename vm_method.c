@@ -146,18 +146,13 @@ rb_add_method_cfunc(VALUE klass, ID mid, VALUE (*func)(ANYARGS), int argc, rb_me
 }
 
 void
-rb_add_method_sorbet(VALUE klass, ID mid, VALUE (*func)(int, VALUE *, VALUE), const rb_sorbet_param_t *param, rb_method_visibility_t visi, void *iseqptr)
+rb_add_method_sorbet(VALUE klass, ID mid, rb_sorbet_func_t func, const rb_sorbet_param_t *param, rb_method_visibility_t visi, void *iseqptr)
 {
-    if (func == rb_f_notimplement) {
-        rb_define_notimplement_method_id(klass, mid, visi);
-    }
-    else {
-        rb_method_sorbet_t opt;
-        opt.func = func;
-        opt.param = param;
-        opt.iseqptr = (rb_iseq_t *)iseqptr;
-        rb_add_method(klass, mid, VM_METHOD_TYPE_SORBET, &opt, visi);
-    }
+    rb_method_sorbet_t opt;
+    opt.func = func;
+    opt.param = param;
+    opt.iseqptr = (rb_iseq_t *)iseqptr;
+    rb_add_method(klass, mid, VM_METHOD_TYPE_SORBET, &opt, visi);
 }
 
 static void
@@ -244,7 +239,7 @@ setup_method_cfunc_struct(rb_method_cfunc_t *cfunc, VALUE (*func)(), int argc)
 }
 
 static void
-setup_method_sorbet_struct(rb_method_sorbet_t *sorbet, VALUE (*func)(int, VALUE*, VALUE), const rb_sorbet_param_t *param, rb_iseq_t *iseqptr)
+setup_method_sorbet_struct(rb_method_sorbet_t *sorbet, rb_sorbet_func_t func, const rb_sorbet_param_t *param, rb_iseq_t *iseqptr)
 {
     sorbet->func = func;
     sorbet->param = param;

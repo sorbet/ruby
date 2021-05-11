@@ -1758,7 +1758,7 @@ rb_define_singleton_method(VALUE obj, const char *name, VALUE (*func)(ANYARGS), 
 }
 
 void
-rb_define_singleton_sorbet_method(VALUE obj, const char *name, VALUE(*func)(int, VALUE *, VALUE), const void *param, void *iseqptr)
+rb_define_singleton_sorbet_method(VALUE obj, const char *name, rb_sorbet_func_t func, const void *param, void *iseqptr)
 {
     rb_add_method_sorbet(singleton_class_of(obj), rb_intern(name), func, (const rb_sorbet_param_t *)param, METHOD_VISI_PUBLIC, iseqptr);
 }

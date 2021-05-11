@@ -2609,17 +2609,17 @@ vm_call_sorbet_with_frame_normal(rb_execution_context_t *ec, rb_control_frame_t 
     RUBY_DTRACE_CMETHOD_ENTRY_HOOK(ec, me->owner, me->def->original_id);
     EXEC_EVENT_HOOK(ec, RUBY_EVENT_C_CALL, recv, me->def->original_id, ci->mid, me->owner, Qundef);
 
-    vm_push_frame(ec, sorbet->iseqptr, frame_type, recv,
-                  block_handler, (VALUE)me,
-                  0, ec->cfp->sp, local_size, sorbet->iseqptr->body->stack_max);
+    rb_control_frame_t *new_cfp = vm_push_frame(ec, sorbet->iseqptr, frame_type, recv,
+                                                block_handler, (VALUE)me,
+                                                0, ec->cfp->sp, local_size, sorbet->iseqptr->body->stack_max);
 
     reg_cfp->sp -= argc + 1;
     /* TODO: eventually we want to pass cd in here to assist with kwargs parsing */
-    val = (*sorbet->func)(argc, reg_cfp->sp + 1, recv);
+    val = (*sorbet->func)(argc, reg_cfp->sp + 1, recv, new_cfp);
 
     CHECK_CFP_CONSISTENCY("vm_call_sorbet");
 
-    rb_vm_pop_frame(ec);
+    vm_pop_frame(ec, new_cfp, new_cfp->ep);
 
     EXEC_EVENT_HOOK(ec, RUBY_EVENT_C_RETURN, recv, me->def->original_id, ci->mid, me->owner, val);
     RUBY_DTRACE_CMETHOD_RETURN_HOOK(ec, me->owner, me->def->original_id);
