@@ -3182,14 +3182,17 @@ static VALUE
 vm_yield_with_cfunc(rb_execution_context_t *ec,
 		    const struct rb_captured_block *captured,
                     VALUE self, int argc, const VALUE *argv, int kw_splat, VALUE block_handler,
-                    const rb_callable_method_entry_t *me)
+                    int is_lambda, const rb_callable_method_entry_t *me)
 {
-    int is_lambda = FALSE; /* TODO */
+    /* is_lambda = FALSE; */ /* Unpatched VM hard-wires this to FALSE. We take it as an arg. */
     VALUE val, arg, blockarg;
     int frame_flag;
     const struct vm_ifunc *ifunc = captured->code.ifunc;
 
-    if (is_lambda) {
+    /* In the unpatched VM, is_lambda is hard-wired to FALSE, so this boxing never actually
+       happens. Now that we plumb is_lambda in from the caller, letting the boxing happen causes
+       GC assertions in Ruby's test suite. Not sure why this happens. */
+    if (0 /*is_lambda*/) {
 	arg = rb_ary_new4(argc, argv);
     }
     else if (argc == 0) {
@@ -3201,7 +3204,7 @@ vm_yield_with_cfunc(rb_execution_context_t *ec,
 
     blockarg = rb_vm_bh_to_procval(ec, block_handler);
 
-    frame_flag = VM_FRAME_MAGIC_IFUNC | VM_FRAME_FLAG_CFRAME | (me ? VM_FRAME_FLAG_BMETHOD : 0);
+    frame_flag = VM_FRAME_MAGIC_IFUNC | VM_FRAME_FLAG_CFRAME | (me ? VM_FRAME_FLAG_BMETHOD : 0) | (is_lambda ? VM_FRAME_FLAG_LAMBDA : 0);
     switch (kw_splat) {
       case 1:
         frame_flag |= VM_FRAME_FLAG_CFRAME_KW;
@@ -3364,7 +3367,7 @@ vm_invoke_symbol_block(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp,
 static VALUE
 vm_invoke_ifunc_block(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp,
 		      struct rb_calling_info *calling, const struct rb_call_info *ci,
-		      const struct rb_captured_block *captured)
+		      int is_lambda, const struct rb_captured_block *captured)
 {
     VALUE val;
     int argc;
@@ -3378,7 +3381,7 @@ vm_invoke_ifunc_block(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp,
         kw_splat = calling->kw_splat;
     }
     argc = calling->argc;
-    val = vm_yield_with_cfunc(ec, captured, captured->self, argc, STACK_ADDR_FROM_TOP(argc), kw_splat, calling->block_handler, NULL);
+    val = vm_yield_with_cfunc(ec, captured, captured->self, argc, STACK_ADDR_FROM_TOP(argc), kw_splat, calling->block_handler, is_lambda, NULL);
     POPN(argc); /* TODO: should put before C/yield? */
     return val;
 }
@@ -3418,7 +3421,7 @@ vm_invoke_block(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp,
       case block_handler_type_ifunc:
 	{
 	    const struct rb_captured_block *captured = VM_BH_TO_IFUNC_BLOCK(block_handler);
-	    return vm_invoke_ifunc_block(ec, reg_cfp, calling, ci, captured);
+	    return vm_invoke_ifunc_block(ec, reg_cfp, calling, ci, is_lambda, captured);
 	}
       case block_handler_type_proc:
 	is_lambda = block_proc_is_lambda(VM_BH_TO_PROC(block_handler));
