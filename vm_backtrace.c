@@ -1321,7 +1321,7 @@ rb_profile_frames(int start, int limit, VALUE *buff, int *lines)
 
 	    /* record frame info */
 	    cme = rb_vm_frame_method_entry(cfp);
-	    if (cme && cme->def->type == VM_METHOD_TYPE_ISEQ) {
+	    if (cme && (cme->def->type == VM_METHOD_TYPE_ISEQ || cme->def->type == VM_METHOD_TYPE_SORBET)) {
 		buff[i] = (VALUE)cme;
 	    }
 	    else {
@@ -1353,6 +1353,8 @@ frame2iseq(VALUE frame)
 		switch (cme->def->type) {
 		  case VM_METHOD_TYPE_ISEQ:
 		    return cme->def->body.iseq.iseqptr;
+                  case VM_METHOD_TYPE_SORBET:
+                    return cme->def->body.sorbet.iseqptr;
 		  default:
 		    return NULL;
 		}
