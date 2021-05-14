@@ -2700,6 +2700,9 @@ method_def_iseq(const rb_method_definition_t *def)
       case VM_METHOD_TYPE_OPTIMIZED:
       case VM_METHOD_TYPE_MISSING:
       case VM_METHOD_TYPE_REFINED:
+          /* don't return iseqptr here because sorbet method iseqs don't necessarily
+           * have all the information required by all the places that call method_def_iseq
+           */
       case VM_METHOD_TYPE_SORBET:
 	break;
     }
@@ -2736,6 +2739,8 @@ method_def_location(const rb_method_definition_t *def)
 	if (!def->body.attr.location)
 	    return Qnil;
 	return rb_ary_dup(def->body.attr.location);
+    } else if (def->type == VM_METHOD_TYPE_SORBET) {
+        return iseq_location(def->body.sorbet.iseqptr);
     }
     return iseq_location(method_def_iseq(def));
 }
