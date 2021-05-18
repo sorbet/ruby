@@ -3219,7 +3219,7 @@ vm_yield_with_cfunc(rb_execution_context_t *ec,
 		  self,
 		  VM_GUARDED_PREV_EP(captured->ep),
                   (VALUE)me,
-		  0, ec->cfp->sp, 0, 0);
+		  0, ec->cfp->sp + argc, 0, 0);
     val = (*ifunc->func)(arg, (VALUE)ifunc->data, argc, argv, blockarg);
     rb_vm_pop_frame(ec);
 
@@ -3381,8 +3381,14 @@ vm_invoke_ifunc_block(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp,
         kw_splat = calling->kw_splat;
     }
     argc = calling->argc;
-    val = vm_yield_with_cfunc(ec, captured, captured->self, argc, STACK_ADDR_FROM_TOP(argc), kw_splat, calling->block_handler, is_lambda, NULL);
-    POPN(argc); /* TODO: should put before C/yield? */
+    const VALUE *argv = STACK_ADDR_FROM_TOP(argc);
+    /*
+     * In sorbet_ruby we move this POPN above vm_yield_call_with_cfunc, so that
+     * if compiled code for a block uses EC_JUMP_TAG, the state will be in the
+     * expected state.
+     */
+    POPN(argc);
+    val = vm_yield_with_cfunc(ec, captured, captured->self, argc, argv, kw_splat, calling->block_handler, is_lambda, NULL);
     return val;
 }
 
