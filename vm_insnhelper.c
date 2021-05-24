@@ -2581,7 +2581,14 @@ vm_call_sorbet_optimizable_p(const struct rb_call_info *ci, const struct rb_call
 }
 
 /* -- Remove empty_kw_splat In 3.0 -- */
-static inline VALUE
+/* Inlining this into the fastpath (vm_call_sorbet_fast_*) functions means the
+ * compiler can collapse away some of the stack manipulation in vm_push_frame.
+ * Compare the ALWAYS_INLINE declaration on vm_call_iseq_setup_normal, which
+ * works on the same principles.
+ */
+ALWAYS_INLINE(static VALUE vm_call_sorbet_with_frame_normal(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp, struct rb_calling_info *calling, struct rb_call_data *cd, const rb_callable_method_entry_t *me, int check_kw_splat, int empty_kw_splat, int param_size, int local_size));
+
+static VALUE
 vm_call_sorbet_with_frame_normal(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp, struct rb_calling_info *calling, struct rb_call_data *cd, const rb_callable_method_entry_t *me, int check_kw_splat, int empty_kw_splat, int param_size, int local_size)
 {
     const struct rb_call_info *ci = &cd->ci;
