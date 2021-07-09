@@ -3182,7 +3182,7 @@ static VALUE
 vm_yield_with_cfunc(rb_execution_context_t *ec,
 		    const struct rb_captured_block *captured,
                     VALUE self, int argc, const VALUE *argv, int kw_splat, VALUE block_handler,
-                    int is_lambda, const rb_callable_method_entry_t *me)
+                    int is_lambda, const rb_callable_method_entry_t *me, int sp_adjust)
 {
     /* is_lambda = FALSE; */ /* Unpatched VM hard-wires this to FALSE. We take it as an arg. */
     VALUE val, arg, blockarg;
@@ -3219,7 +3219,7 @@ vm_yield_with_cfunc(rb_execution_context_t *ec,
 		  self,
 		  VM_GUARDED_PREV_EP(captured->ep),
                   (VALUE)me,
-		  0, ec->cfp->sp + argc, 0, 0);
+		  0, ec->cfp->sp + sp_adjust, 0, 0);
     val = (*ifunc->func)(arg, (VALUE)ifunc->data, argc, argv, blockarg);
     rb_vm_pop_frame(ec);
 
@@ -3386,9 +3386,13 @@ vm_invoke_ifunc_block(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp,
      * In sorbet_ruby we move this POPN above vm_yield_call_with_cfunc, so that
      * if compiled code for a block uses EC_JUMP_TAG, the state will be in the
      * expected state.
+     *
+     * Note that we use sp_adjust (last arg of vm_yield_with_cfunc) to push the
+     * initial stack pointer of the callee frame past the arguments, since it
+     * still needs to be able to read them.
      */
     POPN(argc);
-    val = vm_yield_with_cfunc(ec, captured, captured->self, argc, argv, kw_splat, calling->block_handler, is_lambda, NULL);
+    val = vm_yield_with_cfunc(ec, captured, captured->self, argc, argv, kw_splat, calling->block_handler, is_lambda, NULL, argc);
     return val;
 }
 
