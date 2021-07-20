@@ -1138,7 +1138,7 @@ invoke_block_from_c_bh(rb_execution_context_t *ec, VALUE block_handler,
       case block_handler_type_ifunc:
 	return vm_yield_with_cfunc(ec, VM_BH_TO_IFUNC_BLOCK(block_handler),
 				   VM_BH_TO_IFUNC_BLOCK(block_handler)->self,
-                                   argc, argv, kw_splat, passed_block_handler, is_lambda, NULL, 0);
+                                   argc, argv, kw_splat, passed_block_handler, is_lambda, NULL, FALSE);
       case block_handler_type_symbol:
 	return vm_yield_with_symbol(ec, VM_BH_TO_SYMBOL(block_handler),
 				    argc, argv, kw_splat, passed_block_handler);
@@ -1219,7 +1219,7 @@ invoke_block_from_c_proc(rb_execution_context_t *ec, const rb_proc_t *proc,
             argc--;
             kw_splat = 2;
         }
-        return vm_yield_with_cfunc(ec, &block->as.captured, self, argc, argv, kw_splat, passed_block_handler, is_lambda, me, 0);
+        return vm_yield_with_cfunc(ec, &block->as.captured, self, argc, argv, kw_splat, passed_block_handler, is_lambda, me, FALSE);
       case block_type_symbol:
 	return vm_yield_with_symbol(ec, block->as.symbol, argc, argv, kw_splat, passed_block_handler);
       case block_type_proc:
