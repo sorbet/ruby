@@ -116,6 +116,31 @@ rb_clear_method_cache_by_class(VALUE klass)
     }
 }
 
+void
+rb_method_table_insert(VALUE klass, struct rb_id_table *table, ID method_id, const rb_method_entry_t *me)
+{
+    VALUE table_owner = klass;
+    if (RB_TYPE_P(klass, T_ICLASS) && !FL_TEST(klass, RICLASS_IS_ORIGIN)) {
+        bool owner_found = false;
+        VALUE owner = RBASIC(klass)->klass;
+        // Loop in case the owning class has prepended modules
+        while (owner) {
+            if (RCLASS_M_TBL(owner) == table) {
+                owner_found = true;
+                break;
+            }
+            owner = RCLASS_SUPER(owner);
+        }
+        if (!owner_found) rb_bug("failed to find method table owner");
+        table_owner = owner;
+    }
+
+    VM_ASSERT(RB_TYPE_P(table_owner, T_CLASS) || RB_TYPE_P(table_owner, T_ICLASS) || RB_TYPE_P(table_owner, T_MODULE));
+    VM_ASSERT(table == RCLASS_M_TBL(table_owner));
+    rb_id_table_insert(table, method_id, (VALUE)me);
+    RB_OBJ_WRITTEN(table_owner, Qundef, (VALUE)me);
+}
+
 VALUE
 rb_f_notimplement(int argc, const VALUE *argv, VALUE obj, VALUE marker)
 {
@@ -638,8 +663,7 @@ rb_method_entry_make(VALUE klass, ID mid, VALUE defined_class, rb_method_visibil
 	make_method_entry_refined(klass, me);
     }
 
-    rb_id_table_insert(mtbl, mid, (VALUE)me);
-    RB_OBJ_WRITTEN(klass, Qundef, (VALUE)me);
+    rb_method_table_insert(klass, mtbl, mid, me);
 
     VM_ASSERT(me->def != NULL);
 
@@ -863,6 +887,7 @@ prepare_callable_method_entry(VALUE defined_class, ID id, const rb_method_entry_
 	    }
 	    cme = rb_method_entry_complement_defined_class(me, me->called_id, defined_class);
 	    rb_id_table_insert(mtbl, id, (VALUE)cme);
+            RB_OBJ_WRITTEN(defined_class, Qundef, (VALUE)cme);
 	    VM_ASSERT(callable_method_entry_p(cme));
 	}
     }
