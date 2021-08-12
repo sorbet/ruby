@@ -1754,6 +1754,12 @@ rb_define_singleton_method(VALUE obj, const char *name, VALUE (*func)(ANYARGS), 
     rb_define_method(singleton_class_of(obj), name, func, argc);
 }
 
+void
+rb_define_singleton_sorbet_method(VALUE obj, const char *name, rb_sorbet_func_t func, const void *param, void *iseqptr)
+{
+    rb_add_method_sorbet(singleton_class_of(obj), rb_intern(name), func, (const rb_sorbet_param_t *)param, METHOD_VISI_PUBLIC, iseqptr);
+}
+
 #ifdef rb_define_module_function
 #undef rb_define_module_function
 #endif

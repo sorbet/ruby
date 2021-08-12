@@ -1067,6 +1067,22 @@ rb_iseq_min_max_arity(const rb_iseq_t *iseq, int *max)
     return iseq->body->param.lead_num + iseq->body->param.post_num + (iseq->body->param.flags.has_kw && iseq->body->param.keyword->required_num > 0);
 }
 
+static inline int
+rb_sorbet_min_max_arity(const rb_sorbet_param_t *param, int *max)
+{
+    /* TODO(froydnj): remove when the compiler fills all this information in */
+    if (param == NULL) {
+        *max = UNLIMITED_ARGUMENTS;
+        return 0;
+    }
+
+    *max = param->flags.has_rest == FALSE ?
+        param->lead_num + param->opt_num + param->post_num +
+        (param->flags.has_kw == TRUE || param->flags.has_kwrest == TRUE)
+        : UNLIMITED_ARGUMENTS;
+    return param->lead_num + param->post_num + (param->flags.has_kw && param->kw_required_num > 0);
+}
+
 static int
 rb_vm_block_min_max_arity(const struct rb_block *block, int *max)
 {
@@ -2546,6 +2562,8 @@ rb_method_entry_min_max_arity(const rb_method_entry_t *me, int *max)
       case VM_METHOD_TYPE_REFINED:
 	*max = UNLIMITED_ARGUMENTS;
 	return 0;
+      case VM_METHOD_TYPE_SORBET:
+        return rb_sorbet_min_max_arity(def->body.sorbet.param, max);
     }
     rb_bug("rb_method_entry_min_max_arity: invalid method entry type (%d)", def->type);
     UNREACHABLE_RETURN(Qnil);
@@ -2682,6 +2700,10 @@ method_def_iseq(const rb_method_definition_t *def)
       case VM_METHOD_TYPE_OPTIMIZED:
       case VM_METHOD_TYPE_MISSING:
       case VM_METHOD_TYPE_REFINED:
+          /* don't return iseqptr here because sorbet method iseqs don't necessarily
+           * have all the information required by all the places that call method_def_iseq
+           */
+      case VM_METHOD_TYPE_SORBET:
 	break;
     }
     return NULL;
@@ -2717,6 +2739,8 @@ method_def_location(const rb_method_definition_t *def)
 	if (!def->body.attr.location)
 	    return Qnil;
 	return rb_ary_dup(def->body.attr.location);
+    } else if (def->type == VM_METHOD_TYPE_SORBET) {
+        return iseq_location(def->body.sorbet.iseqptr);
     }
     return iseq_location(method_def_iseq(def));
 }
@@ -2740,6 +2764,114 @@ VALUE
 rb_method_location(VALUE method)
 {
     return method_def_location(rb_method_def(method));
+}
+
+static const rb_sorbet_param_t *
+rb_method_sorbet_param(VALUE method)
+{
+    const rb_method_definition_t *def = rb_method_def(method);
+    if (def->type != VM_METHOD_TYPE_SORBET) {
+        return NULL;
+    }
+    return def->body.sorbet.param;
+}
+
+static VALUE
+rb_sorbet_parameters(const rb_sorbet_param_t *param)
+{
+    /* cf. rb_iseq_parameters */
+    int i, r, endopt;
+    VALUE a, args = rb_ary_new2(param->size);
+    ID req, opt, rest, block, nokey, key, keyreq, keyrest;
+#define PARAM_TYPE(type) rb_ary_push(a = rb_ary_new2(2), ID2SYM(type))
+#define PARAM_ID(i) param->pos_table[(i)]
+#define PARAM(i, type) (		      \
+	PARAM_TYPE(type),		      \
+	rb_id2str(PARAM_ID(i)) ?	      \
+	rb_ary_push(a, ID2SYM(PARAM_ID(i))) : \
+	a)
+
+    /* TODO(froydnj): do we need to care about the is_proc distinction that
+     * rb_iseq_parameters makes?
+     */
+    CONST_ID(req, "req");
+    CONST_ID(opt, "opt");
+
+    for (i = 0; i < param->lead_num; ++i) {
+        rb_ary_push(args, PARAM(i, req));
+    }
+
+    endopt = param->lead_num + param->opt_num;
+    for (; i < endopt; ++i) {
+        PARAM_TYPE(opt);
+        if (rb_id2str(PARAM_ID(i))) {
+            rb_ary_push(a, ID2SYM(PARAM_ID(i)));
+        }
+        rb_ary_push(args, a);
+    }
+
+    if (param->flags.has_rest) {
+        CONST_ID(rest, "rest");
+        PARAM_TYPE(rest);
+        const ID *id = &param->pos_table[param->rest_start];
+        if (rb_id2str(*id)) {
+            rb_ary_push(a, ID2SYM(*id));
+        }
+        rb_ary_push(args, a);
+    }
+
+    r = param->post_start + param->post_num;
+    for (i = param->post_start; i < r; ++i) {
+        rb_ary_push(args, PARAM(i, req));
+    }
+    if (param->flags.accepts_no_kwarg) {
+        CONST_ID(nokey, "nokey");
+        PARAM_TYPE(nokey);
+        rb_ary_push(args, a);
+    }
+    if (param->flags.has_kw) {
+        i = 0;
+        if (param->kw_required_num > 0) {
+            CONST_ID(keyreq, "keyreq");
+            for (; i < param->kw_required_num; ++i) {
+                PARAM_TYPE(keyreq);
+                const ID *id = &param->kw_table[i];
+                if (rb_id2str(*id)) {
+                    rb_ary_push(a, ID2SYM(*id));
+                }
+                rb_ary_push(args, a);
+            }
+        }
+        CONST_ID(key, "key");
+        for (; i < param->kw_num; ++i) {
+            PARAM_TYPE(key);
+            const ID *id = &param->kw_table[i];
+            if (rb_id2str(*id)) {
+                rb_ary_push(a, ID2SYM(*id));
+            }
+            rb_ary_push(args, a);
+        }
+    }
+    if (param->flags.has_kwrest) {
+        CONST_ID(keyrest, "keyrest");
+        PARAM_TYPE(keyrest);
+        const ID *id = &param->kw_table[param->kw_num];
+        if (rb_id2str(*id)) {
+            rb_ary_push(a, ID2SYM(*id));
+        }
+        rb_ary_push(args, a);
+    }
+    if (param->flags.has_block) {
+        CONST_ID(block, "block");
+        PARAM_TYPE(block);
+        const ID *id = &param->pos_table[param->block_start];
+        if (rb_id2str(*id)) {
+            rb_ary_push(a, ID2SYM(*id));
+        }
+        rb_ary_push(args, a);
+    }
+
+    return args;
 }
 
 /*
@@ -2766,6 +2898,10 @@ rb_method_parameters(VALUE method)
 {
     const rb_iseq_t *iseq = rb_method_iseq(method);
     if (!iseq) {
+        const rb_sorbet_param_t *param = rb_method_sorbet_param(method);
+        if (param) {
+            return rb_sorbet_parameters(param);
+        }
 	return rb_unnamed_parameters(method_arity(method));
     }
     return rb_iseq_parameters(iseq, 0);
