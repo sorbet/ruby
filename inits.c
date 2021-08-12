@@ -77,6 +77,7 @@ rb_call_inits(void)
     CALL(vm_trace);
     CALL(pack);
     CALL(warning);
+    CALL(Sorbet_T);
     load_prelude();
 }
 #undef CALL
