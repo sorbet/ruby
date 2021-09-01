@@ -4902,7 +4902,10 @@ mark_method_entry(rb_objspace_t *objspace, const rb_method_entry_t *me)
 	  case VM_METHOD_TYPE_OPTIMIZED:
 	  case VM_METHOD_TYPE_UNDEF:
 	  case VM_METHOD_TYPE_NOTIMPLEMENTED:
+            break;
 	  case VM_METHOD_TYPE_SORBET:
+	    if (def->body.sorbet.iseqptr) gc_mark(objspace, (VALUE)def->body.sorbet.iseqptr);
+	    gc_mark(objspace, (VALUE)def->body.sorbet.cref);
 	    break;
 	}
     }
@@ -8032,7 +8035,12 @@ gc_ref_update_method_entry(rb_objspace_t *objspace, rb_method_entry_t *me)
           case VM_METHOD_TYPE_OPTIMIZED:
           case VM_METHOD_TYPE_UNDEF:
           case VM_METHOD_TYPE_NOTIMPLEMENTED:
+            break;
           case VM_METHOD_TYPE_SORBET:
+            if (def->body.sorbet.iseqptr) {
+                TYPED_UPDATE_IF_MOVED(objspace, rb_iseq_t *, def->body.sorbet.iseqptr);
+            }
+            TYPED_UPDATE_IF_MOVED(objspace, rb_cref_t *, def->body.sorbet.cref);
             break;
         }
     }
