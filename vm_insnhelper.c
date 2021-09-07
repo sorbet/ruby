@@ -628,6 +628,8 @@ method_entry_cref(rb_callable_method_entry_t *me)
     switch (me->def->type) {
       case VM_METHOD_TYPE_ISEQ:
 	return me->def->body.iseq.cref;
+      case VM_METHOD_TYPE_SORBET:
+        return me->def->body.sorbet.cref;
       default:
 	return NULL;
     }

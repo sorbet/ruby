@@ -171,12 +171,13 @@ rb_add_method_cfunc(VALUE klass, ID mid, VALUE (*func)(ANYARGS), int argc, rb_me
 }
 
 void
-rb_add_method_sorbet(VALUE klass, ID mid, rb_sorbet_func_t func, const rb_sorbet_param_t *param, rb_method_visibility_t visi, void *iseqptr)
+rb_add_method_sorbet(VALUE klass, ID mid, rb_sorbet_func_t func, const rb_sorbet_param_t *param, rb_method_visibility_t visi, void *iseqptr, rb_cref_t *cref)
 {
     rb_method_sorbet_t opt;
     opt.func = func;
     opt.param = param;
     opt.iseqptr = (rb_iseq_t *)iseqptr;
+    opt.cref = cref;
     rb_add_method(klass, mid, VM_METHOD_TYPE_SORBET, &opt, visi);
 }
 
@@ -264,11 +265,12 @@ setup_method_cfunc_struct(rb_method_cfunc_t *cfunc, VALUE (*func)(), int argc)
 }
 
 static void
-setup_method_sorbet_struct(rb_method_sorbet_t *sorbet, rb_sorbet_func_t func, const rb_sorbet_param_t *param, rb_iseq_t *iseqptr)
+setup_method_sorbet_struct(rb_method_sorbet_t *sorbet, rb_sorbet_func_t func, const rb_sorbet_param_t *param, rb_iseq_t *iseqptr, rb_cref_t *cref)
 {
     sorbet->func = func;
     sorbet->param = param;
     sorbet->iseqptr = iseqptr;
+    sorbet->cref = cref;
 }
 
 MJIT_FUNC_EXPORTED void
@@ -307,7 +309,7 @@ rb_method_definition_set(const rb_method_entry_t *me, rb_method_definition_t *de
 	  case VM_METHOD_TYPE_SORBET:
 	    {
 		rb_method_sorbet_t *sorbet = (rb_method_sorbet_t *)opts;
-		setup_method_sorbet_struct(UNALIGNED_MEMBER_PTR(def, body.sorbet), sorbet->func, sorbet->param, sorbet->iseqptr);
+		setup_method_sorbet_struct(UNALIGNED_MEMBER_PTR(def, body.sorbet), sorbet->func, sorbet->param, sorbet->iseqptr, sorbet->cref);
 		return;
 	    }
 	  case VM_METHOD_TYPE_ATTRSET:
