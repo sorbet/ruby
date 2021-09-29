@@ -2622,7 +2622,7 @@ vm_call_sorbet_with_frame_normal(rb_execution_context_t *ec, rb_control_frame_t 
 
     reg_cfp->sp -= argc + 1;
     /* TODO: eventually we want to pass cd in here to assist with kwargs parsing */
-    val = (*sorbet->func)(argc, reg_cfp->sp + 1, recv, new_cfp);
+    val = (*sorbet->func)(argc, reg_cfp->sp + 1, recv, new_cfp, cd);
 
     CHECK_CFP_CONSISTENCY("vm_call_sorbet");
 

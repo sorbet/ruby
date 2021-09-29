@@ -199,7 +199,7 @@ typedef struct rb_sorbet_param_struct {
     const ID *kw_table;
 } rb_sorbet_param_t;
 
-typedef VALUE (*rb_sorbet_func_t)(int, VALUE *, VALUE, struct rb_control_frame_struct *);
+typedef VALUE (*rb_sorbet_func_t)(int, VALUE *, VALUE, struct rb_control_frame_struct *, void *);
 
 typedef struct rb_method_sorbet_struct {
     /* cf. rb_method_cfunc_struct, but we only support one argument style */
