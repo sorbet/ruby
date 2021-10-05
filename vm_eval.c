@@ -143,7 +143,7 @@ vm_call0_sorbet_with_frame(rb_execution_context_t* ec, struct rb_calling_info *c
                                                     block_handler, (VALUE)me,
                                                     0, reg_cfp->sp, sorbet->iseqptr->body->local_table_size, sorbet->iseqptr->body->stack_max);
 
-        val = (*sorbet->func)(argc, argv, recv, new_cfp, cd, calling);
+        val = (*sorbet->func)(argc, argv, recv, new_cfp, calling, cd);
 
 	CHECK_CFP_CONSISTENCY("vm_call0_sorbet_with_frame");
 	rb_vm_pop_frame(ec);

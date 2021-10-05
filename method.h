@@ -201,8 +201,8 @@ typedef struct rb_sorbet_param_struct {
 
 /* The `void *` parameters are:
  *
- * - struct rb_call_data *
  * - struct rb_calling_info *
+ * - struct rb_call_data *
  *
  * which we can't use here because they're not exported.
  */

@@ -2621,7 +2621,7 @@ vm_call_sorbet_with_frame_normal(rb_execution_context_t *ec, rb_control_frame_t 
                                                 0, ec->cfp->sp, local_size, sorbet->iseqptr->body->stack_max);
 
     reg_cfp->sp -= argc + 1;
-    val = (*sorbet->func)(argc, reg_cfp->sp + 1, recv, new_cfp, cd, calling);
+    val = (*sorbet->func)(argc, reg_cfp->sp + 1, recv, new_cfp, calling, cd);
 
     CHECK_CFP_CONSISTENCY("vm_call_sorbet");
 
