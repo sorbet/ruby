@@ -2554,30 +2554,64 @@ vm_call_sorbet_simple_p(const rb_method_sorbet_t *sorbet)
         sorbet->param->flags.has_block == FALSE;
 }
 
-/* This call combines vm_call_iseq_optimizable_p and logic in vm_callee_setup_arg */
+/* Return true if this method has kwargs than can be parsed efficiently by the
+ * compiler's kwarg parsing.  This is similiar to rb_iseq_only_kwparam_p, except
+ * that we don't care whether we have optional parameters or not. */
 static bool
+vm_call_kwarg_simple_p(const rb_method_sorbet_t *sorbet)
+{
+    const rb_sorbet_param_t *param = sorbet->param;
+    return param->flags.has_rest == FALSE &&
+        param->flags.has_post == FALSE &&
+        param->flags.has_kw == TRUE &&
+        param->flags.has_kwrest == FALSE &&
+        param->flags.has_block == FALSE;
+}
+
+enum sorbet_method_opt_kind {
+    /* Not specially optimizable */
+    SORBET_METHOD_OPT_NONE,
+    /* Only required parameters */
+    SORBET_METHOD_OPT_REQ_PARAM_ONLY,
+    /* Keyword arguments without potential kwsplats */
+    SORBET_METHOD_OPT_EFFICIENT_KWARGS,
+};
+
+/* This call combines vm_call_iseq_optimizable_p and logic in vm_callee_setup_arg */
+static enum sorbet_method_opt_kind
 vm_call_sorbet_optimizable_p(const struct rb_call_info *ci, const struct rb_call_cache *cc,
                              const rb_method_sorbet_t *sorbet)
 {
-    if (!vm_call_iseq_optimizable_p(ci, cc)) {
-        return false;
+    /* Splat calls are generally not interesting, because they can introduce kwsplats
+     * and require extra processing anyway to resolve the splat. */
+    if (IS_ARGS_SPLAT(ci)) {
+        return SORBET_METHOD_OPT_NONE;
     }
 
-    /* vm_callee_setup_arg */
-    if (UNLIKELY(ci->flag & VM_CALL_KW_SPLAT)) {
-        return false;
+    /* Similarly for keyword splats. */
+    if (IS_ARGS_KW_SPLAT(ci)) {
+        return SORBET_METHOD_OPT_NONE;
     }
 
-    /* We only handle simple calls to functions with positional args, unlike
-     * vm_callee_setup_arg */
-    if (!vm_call_sorbet_simple_p(sorbet)) {
-        return false;
+    /* Protected methods are weird, so don't deal with them. */
+    if (METHOD_ENTRY_VISI(cc->me) == METHOD_VISI_PROTECTED) {
+        return SORBET_METHOD_OPT_NONE;
     }
 
-    /* This callsite is to a method that only takes positional arguments. */
-    /* TODO: change this to handle more of the cases that vm_callee_setup_arg does,
-     * like kwarg-only functions.  */
-    return true;
+    /* Positional-argument-only methods are easy to optimize and very common.  But
+     * make sure we're not providing keyword args here.  */
+    if (vm_call_sorbet_simple_p(sorbet) && !IS_ARGS_KEYWORD(ci)) {
+        return SORBET_METHOD_OPT_REQ_PARAM_ONLY;
+    }
+
+    /* If we're calling a keyword-arg taking function that doesn't have other complex
+     * arguments, we can avoid turning the keyword args into a keyword splat. */
+    if (vm_call_kwarg_simple_p(sorbet)) {
+        return SORBET_METHOD_OPT_EFFICIENT_KWARGS;
+    }
+
+    /* We have something else that we haven't added an efficient case for. */
+    return SORBET_METHOD_OPT_NONE;
 }
 
 /* -- Remove empty_kw_splat In 3.0 -- */
@@ -2908,42 +2942,51 @@ vm_call_sorbet_maybe_setup_fastpath(rb_execution_context_t *ec, rb_control_frame
     const struct rb_call_info *ci = &cd->ci;
     struct rb_call_cache *cc = &cd->cc;
     const rb_method_sorbet_t *sorbet = UNALIGNED_MEMBER_PTR(cc->me->def, body.sorbet);
+    enum sorbet_method_opt_kind kind = vm_call_sorbet_optimizable_p(ci, cc, sorbet);
 
-    /* Just take the normal path, we'll call vm_call_sorbet directly next time. */
-    if (!vm_call_sorbet_optimizable_p(ci, cc, sorbet)) {
+    /* vm_call_sorbet has already been set as the fastpath before we enter this
+     * function, so we're just trying to figure out if there's something even
+     * faster that we could use as the fastpath.  If not, we can just call
+     * vm_call_sorbet here, and the fastpath code will be triggered next time.
+     */
+    switch (kind) {
+    case SORBET_METHOD_OPT_NONE:
+    /* TODO: add the efficient code for this case. */
+    case SORBET_METHOD_OPT_EFFICIENT_KWARGS:
+        return vm_call_sorbet(ec, cfp, calling, cd);
+    case SORBET_METHOD_OPT_REQ_PARAM_ONLY: {
+        /* We know that the method we're calling takes only positional arguments.
+         * But we need to verify that the method is being passed only positional
+         * arguments and there aren't any kwarg fixups that we need to do.  We
+         * only need to do this once, cf. vm_callee_setup_arg.
+         */
+        CALLER_SETUP_ARG(cfp, calling, ci);
+        int empty_kw_splat = calling->kw_splat;
+        CALLER_REMOVE_EMPTY_KW_SPLAT(cfp, calling, ci);
+        if (empty_kw_splat && calling->kw_splat) {
+            empty_kw_splat = 0;
+        }
+
+        if (UNLIKELY(calling->argc != sorbet->param->lead_num)) {
+            /* vm_callee_setup_arg calls argument_arity_error, but our iseq is not
+             * set up in the way that function expects.  We don't declare and call
+             * sorbet_raiseArity here because it's nice to have a Ruby with just
+             * the Sorbet calling convention patches applied be able to compile
+             * and run Ruby's testsuite.  Instead, just call the function "normally"
+             * and let the argument checking in the function itself handle raising
+             * the error.
+             */
+            return vm_call_sorbet_with_frame(ec, cfp, calling, cd, empty_kw_splat);
+        }
+
+        /* vm_call_method_each_type has already set the fastpath to vm_call_sorbet,
+         * which handles all of the cases above.  We've done all of those checks so that
+         * we know a different fastpath is available, which we set here.
+         */
+        CC_SET_FASTPATH(cc, vm_call_sorbet_fast_func(ci, sorbet->param->size, sorbet->iseqptr->body->local_table_size), TRUE);
         return vm_call_sorbet(ec, cfp, calling, cd);
     }
-
-    /* We know that the method we're calling takes only positional arguments.
-     * But we need to verify that the method is being passed only positional
-     * arguments and there aren't any kwarg fixups that we need to do.  We
-     * only need to do this once, cf. vm_callee_setup_arg.
-     */
-    CALLER_SETUP_ARG(cfp, calling, ci);
-    int empty_kw_splat = calling->kw_splat;
-    CALLER_REMOVE_EMPTY_KW_SPLAT(cfp, calling, ci);
-    if (empty_kw_splat && calling->kw_splat) {
-        empty_kw_splat = 0;
     }
-
-    if (UNLIKELY(calling->argc != sorbet->param->lead_num)) {
-        /* vm_callee_setup_arg calls argument_arity_error, but our iseq is not
-         * set up in the way that function expects.  We don't declare and call
-         * sorbet_raiseArity here because it's nice to have a Ruby with just
-         * the Sorbet calling convention patches applied be able to compile
-         * and run Ruby's testsuite.  Instead, just call the function "normally"
-         * and let the argument checking in the function itself handle raising
-         * the error.
-         */
-        return vm_call_sorbet_with_frame(ec, cfp, calling, cd, empty_kw_splat);
-    }
-
-    /* vm_call_method_each_type has already set the fastpath to vm_call_sorbet,
-     * which handles all of the cases above.  We've done all of those checks so that
-     * we know a different fastpath is available, which we set here.
-     */
-    CC_SET_FASTPATH(cc, vm_call_sorbet_fast_func(ci, sorbet->param->size, sorbet->iseqptr->body->local_table_size), TRUE);
-    return vm_call_sorbet(ec, cfp, calling, cd);
 }
 
 static VALUE
