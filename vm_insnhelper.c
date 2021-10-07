@@ -2681,16 +2681,26 @@ vm_call_sorbet_with_frame(rb_execution_context_t *ec, rb_control_frame_t *reg_cf
 static VALUE
 vm_call_sorbet_kwargs(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp, struct rb_calling_info *calling, struct rb_call_data *cd)
 {
-    const struct rb_call_info *ci = &cd->ci;
+    const struct rb_kwarg_call_data *kcd = (void *)cd;
+    const struct rb_call_info_with_kwarg *ci_kw = &kcd->ci_kw;
     /* We have ensured that anything going through this function won't have kwsplats. */
-    int empty_kw_splat = 0;
+    const int check_kw_splat = 0;
+    const int empty_kw_splat = 0;
+    const rb_callable_method_entry_t *me = cd->cc.me;
+    const rb_method_sorbet_t *sorbet = UNALIGNED_MEMBER_PTR(me->def, body.sorbet);
 
     /* Similarly to the above, we have ensured that anything going through this function
      * won't have rest args, so we don't have to splat rest args via CALLER_SETUP_ARG.
      * We also don't have to do the IS_ARGS_KEYWORD part of CALLER_SETUP_ARG, because
      * we explicitly want to keep the interpreter-style of keyword arg passing.
+     *
+     * We do, however, need to adjust argc to make it reflect only the positional args
+     * being passed.
      */
-    return vm_call_sorbet_with_frame(ec, reg_cfp, calling, cd, empty_kw_splat);
+    const int argc = calling->argc - ci_kw->kw_arg->keyword_len;
+    const int param_size = calling->argc;
+    const int locals = sorbet->iseqptr->body->local_table_size;
+    return vm_call_sorbet_with_frame_normal(ec, reg_cfp, calling, cd, me, check_kw_splat, empty_kw_splat, argc, param_size, locals);
 }
 
 static VALUE
