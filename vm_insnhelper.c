@@ -2722,7 +2722,9 @@ vm_call_sorbet_fast_0params_0locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 0, 0);
+    const int params = 0;
+    const int locals = 0;
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, params, locals);
 }
 
 static VALUE
@@ -2730,7 +2732,9 @@ vm_call_sorbet_fast_0params_1locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 0, 1);
+    const int params = 0;
+    const int locals = 1;
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, params, locals);
 }
 
 static VALUE
@@ -2738,7 +2742,9 @@ vm_call_sorbet_fast_0params_2locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 0, 2);
+    const int params = 0;
+    const int locals = 2;
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, params, locals);
 }
 
 static VALUE
@@ -2746,7 +2752,9 @@ vm_call_sorbet_fast_0params_3locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 0, 3);
+    const int params = 0;
+    const int locals = 3;
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, params, locals);
 }
 
 static VALUE
@@ -2754,7 +2762,9 @@ vm_call_sorbet_fast_0params_4locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 0, 4);
+    const int params = 0;
+    const int locals = 4;
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, params, locals);
 }
 
 static VALUE
@@ -2762,7 +2772,9 @@ vm_call_sorbet_fast_0params_5locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 0, 5);
+    const int params = 0;
+    const int locals = 5;
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, params, locals);
 }
 
 static VALUE
@@ -2770,7 +2782,9 @@ vm_call_sorbet_fast_1params_0locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 1, 0);
+    const int params = 1;
+    const int locals = 0;
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, params, locals);
 }
 
 static VALUE
@@ -2778,7 +2792,9 @@ vm_call_sorbet_fast_1params_1locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 1, 1);
+    const int params = 1;
+    const int locals = 1;
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, params, locals);
 }
 
 static VALUE
@@ -2786,7 +2802,9 @@ vm_call_sorbet_fast_1params_2locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 1, 2);
+    const int params = 1;
+    const int locals = 2;
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, params, locals);
 }
 
 static VALUE
@@ -2794,7 +2812,9 @@ vm_call_sorbet_fast_1params_3locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 1, 3);
+    const int params = 1;
+    const int locals = 3;
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, params, locals);
 }
 
 static VALUE
@@ -2802,7 +2822,9 @@ vm_call_sorbet_fast_1params_4locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 1, 4);
+    const int params = 1;
+    const int locals = 4;
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, params, locals);
 }
 
 static VALUE
@@ -2810,7 +2832,9 @@ vm_call_sorbet_fast_1params_5locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 1, 5);
+    const int params = 1;
+    const int locals = 5;
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, params, locals);
 }
 
 static VALUE
@@ -2818,7 +2842,9 @@ vm_call_sorbet_fast_2params_0locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 2, 0);
+    const int params = 2;
+    const int locals = 0;
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, params, locals);
 }
 
 static VALUE
@@ -2826,7 +2852,9 @@ vm_call_sorbet_fast_2params_1locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 2, 1);
+    const int params = 2;
+    const int locals = 1;
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, params, locals);
 }
 
 static VALUE
@@ -2834,7 +2862,9 @@ vm_call_sorbet_fast_2params_2locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 2, 2);
+    const int params = 2;
+    const int locals = 2;
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, params, locals);
 }
 
 static VALUE
@@ -2842,7 +2872,9 @@ vm_call_sorbet_fast_2params_3locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 2, 3);
+    const int params = 2;
+    const int locals = 3;
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, params, locals);
 }
 
 static VALUE
@@ -2850,7 +2882,9 @@ vm_call_sorbet_fast_2params_4locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 2, 4);
+    const int params = 2;
+    const int locals = 4;
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, params, locals);
 }
 
 static VALUE
@@ -2858,7 +2892,9 @@ vm_call_sorbet_fast_2params_5locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 2, 5);
+    const int params = 2;
+    const int locals = 5;
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, params, locals);
 }
 
 static VALUE
@@ -2866,7 +2902,9 @@ vm_call_sorbet_fast_3params_0locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 3, 0);
+    const int params = 3;
+    const int locals = 0;
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, params, locals);
 }
 
 static VALUE
@@ -2874,7 +2912,9 @@ vm_call_sorbet_fast_3params_1locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 3, 1);
+    const int params = 3;
+    const int locals = 1;
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, params, locals);
 }
 
 static VALUE
@@ -2882,7 +2922,9 @@ vm_call_sorbet_fast_3params_2locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 3, 2);
+    const int params = 3;
+    const int locals = 2;
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, params, locals);
 }
 
 static VALUE
@@ -2890,7 +2932,9 @@ vm_call_sorbet_fast_3params_3locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 3, 3);
+    const int params = 3;
+    const int locals = 3;
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, params, locals);
 }
 
 static VALUE
@@ -2898,7 +2942,9 @@ vm_call_sorbet_fast_3params_4locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 3, 4);
+    const int params = 3;
+    const int locals = 4;
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, params, locals);
 }
 
 static VALUE
@@ -2906,7 +2952,9 @@ vm_call_sorbet_fast_3params_5locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 3, 5);
+    const int params = 3;
+    const int locals = 5;
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, params, locals);
 }
 
 static const vm_call_handler vm_call_sorbet_handlers[][6] = {
