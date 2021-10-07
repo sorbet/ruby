@@ -2673,7 +2673,9 @@ vm_call_sorbet_with_frame(rb_execution_context_t *ec, rb_control_frame_t *reg_cf
     const int check_kw_splat = 1;
     const rb_callable_method_entry_t *me = cd->cc.me;
     const rb_method_sorbet_t *sorbet = UNALIGNED_MEMBER_PTR(me->def, body.sorbet);
-    return vm_call_sorbet_with_frame_normal(ec, reg_cfp, calling, cd, me, check_kw_splat, empty_kw_splat, calling->argc, sorbet->iseqptr->body->local_table_size);
+    const int argc = calling->argc;
+    const int locals = sorbet->iseqptr->body->local_table_size;
+    return vm_call_sorbet_with_frame_normal(ec, reg_cfp, calling, cd, me, check_kw_splat, empty_kw_splat, argc, locals);
 }
 
 static VALUE
