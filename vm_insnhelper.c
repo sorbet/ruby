@@ -2677,6 +2677,21 @@ vm_call_sorbet_with_frame(rb_execution_context_t *ec, rb_control_frame_t *reg_cf
 }
 
 static VALUE
+vm_call_sorbet_kwargs(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp, struct rb_calling_info *calling, struct rb_call_data *cd)
+{
+    const struct rb_call_info *ci = &cd->ci;
+    /* We have ensured that anything going through this function won't have kwsplats. */
+    int empty_kw_splat = 0;
+
+    /* Similarly to the above, we have ensured that anything going through this function
+     * won't have rest args, so we don't have to splat rest args via CALLER_SETUP_ARG.
+     * We also don't have to do the IS_ARGS_KEYWORD part of CALLER_SETUP_ARG, because
+     * we explicitly want to keep the interpreter-style of keyword arg passing.
+     */
+    return vm_call_sorbet_with_frame(ec, reg_cfp, calling, cd, empty_kw_splat);
+}
+
+static VALUE
 vm_call_sorbet(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp, struct rb_calling_info *calling, struct rb_call_data *cd)
 {
     const struct rb_call_info *ci = &cd->ci;
@@ -2951,9 +2966,10 @@ vm_call_sorbet_maybe_setup_fastpath(rb_execution_context_t *ec, rb_control_frame
      */
     switch (kind) {
     case SORBET_METHOD_OPT_NONE:
-    /* TODO: add the efficient code for this case. */
-    case SORBET_METHOD_OPT_EFFICIENT_KWARGS:
         return vm_call_sorbet(ec, cfp, calling, cd);
+    case SORBET_METHOD_OPT_EFFICIENT_KWARGS:
+        CC_SET_FASTPATH(cc, vm_call_sorbet_kwargs, TRUE);
+        return vm_call_sorbet_kwargs(ec, cfp, calling, cd);
     case SORBET_METHOD_OPT_REQ_PARAM_ONLY: {
         /* We know that the method we're calling takes only positional arguments.
          * But we need to verify that the method is being passed only positional
