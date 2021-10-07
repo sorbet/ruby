@@ -2606,7 +2606,7 @@ vm_call_sorbet_optimizable_p(const struct rb_call_info *ci, const struct rb_call
 
     /* If we're calling a keyword-arg taking function that doesn't have other complex
      * arguments, we can avoid turning the keyword args into a keyword splat. */
-    if (vm_call_kwarg_simple_p(sorbet)) {
+    if (vm_call_kwarg_simple_p(sorbet) && IS_ARGS_KEYWORD(ci)) {
         return SORBET_METHOD_OPT_EFFICIENT_KWARGS;
     }
 
