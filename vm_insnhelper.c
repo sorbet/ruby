@@ -2555,8 +2555,7 @@ vm_call_sorbet_simple_p(const rb_method_sorbet_t *sorbet)
 }
 
 /* Return true if this method has kwargs than can be parsed efficiently by the
- * compiler's kwarg parsing.  This is similiar to rb_iseq_only_kwparam_p, except
- * that we don't care whether we have optional parameters or not. */
+ * compiler's kwarg parsing. */
 static bool
 vm_call_kwarg_simple_p(const rb_method_sorbet_t *sorbet)
 {
@@ -2581,7 +2580,7 @@ enum sorbet_method_opt_kind {
 /* This call combines vm_call_iseq_optimizable_p and logic in vm_callee_setup_arg */
 static enum sorbet_method_opt_kind
 vm_call_sorbet_optimizable_p(const struct rb_call_info *ci, const struct rb_call_cache *cc,
-                             const rb_method_sorbet_t *sorbet)
+                             const struct rb_calling_info *calling, const rb_method_sorbet_t *sorbet)
 {
     /* Splat calls are generally not interesting, because they can introduce kwsplats
      * and require extra processing anyway to resolve the splat. */
@@ -2608,7 +2607,24 @@ vm_call_sorbet_optimizable_p(const struct rb_call_info *ci, const struct rb_call
     /* If we're calling a keyword-arg taking function that doesn't have other complex
      * arguments, we can avoid turning the keyword args into a keyword splat. */
     if (vm_call_kwarg_simple_p(sorbet) && IS_ARGS_KEYWORD(ci)) {
-        return SORBET_METHOD_OPT_EFFICIENT_KWARGS;
+        /* Because Ruby keyword args can be rolled up into keyword splats to satisfy
+         * the last positional arg, the only case we can handle is when there are
+         * exactly the right number of positional args already.
+         *
+         * vm_callee_setup_arg has another case for no keyword args getting passed,
+         * but we don't handle that yet (and if we did handle it, we'd do it in the
+         * compiled code instead of in the VM, barring major changes to how the
+         * compiled code's argument parsing works).
+         */
+        const int lead_num = sorbet->param->lead_num;
+        const int argc = calling->argc;
+        const struct rb_call_info_kw_arg *kw_arg = ((struct rb_call_info_with_kwarg *)ci)->kw_arg;
+
+        if (argc - kw_arg->keyword_len == lead_num) {
+            return SORBET_METHOD_OPT_EFFICIENT_KWARGS;
+        }
+
+        return SORBET_METHOD_OPT_NONE;
     }
 
     /* We have something else that we haven't added an efficient case for. */
@@ -3042,7 +3058,7 @@ vm_call_sorbet_maybe_setup_fastpath(rb_execution_context_t *ec, rb_control_frame
     const struct rb_call_info *ci = &cd->ci;
     struct rb_call_cache *cc = &cd->cc;
     const rb_method_sorbet_t *sorbet = UNALIGNED_MEMBER_PTR(cc->me->def, body.sorbet);
-    enum sorbet_method_opt_kind kind = vm_call_sorbet_optimizable_p(ci, cc, sorbet);
+    enum sorbet_method_opt_kind kind = vm_call_sorbet_optimizable_p(ci, cc, calling, sorbet);
 
     /* vm_call_sorbet has already been set as the fastpath before we enter this
      * function, so we're just trying to figure out if there's something even
