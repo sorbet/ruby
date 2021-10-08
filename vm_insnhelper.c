@@ -2561,7 +2561,8 @@ static bool
 vm_call_kwarg_simple_p(const rb_method_sorbet_t *sorbet)
 {
     const rb_sorbet_param_t *param = sorbet->param;
-    return param->flags.has_rest == FALSE &&
+    return param->flags.has_opt == FALSE &&
+        param->flags.has_rest == FALSE &&
         param->flags.has_post == FALSE &&
         param->flags.has_kw == TRUE &&
         param->flags.has_kwrest == FALSE &&
