@@ -2554,81 +2554,30 @@ vm_call_sorbet_simple_p(const rb_method_sorbet_t *sorbet)
         sorbet->param->flags.has_block == FALSE;
 }
 
-/* Return true if this method has kwargs than can be parsed efficiently by the
- * compiler's kwarg parsing. */
-static bool
-vm_call_kwarg_simple_p(const rb_method_sorbet_t *sorbet)
-{
-    const rb_sorbet_param_t *param = sorbet->param;
-    return param->flags.has_opt == FALSE &&
-        param->flags.has_rest == FALSE &&
-        param->flags.has_post == FALSE &&
-        param->flags.has_kw == TRUE &&
-        param->flags.has_kwrest == FALSE &&
-        param->flags.has_block == FALSE;
-}
-
-enum sorbet_method_opt_kind {
-    /* Not specially optimizable */
-    SORBET_METHOD_OPT_NONE,
-    /* Only required parameters */
-    SORBET_METHOD_OPT_REQ_PARAM_ONLY,
-    /* Keyword arguments without potential kwsplats */
-    SORBET_METHOD_OPT_EFFICIENT_KWARGS,
-};
-
 /* This call combines vm_call_iseq_optimizable_p and logic in vm_callee_setup_arg */
-static enum sorbet_method_opt_kind
+static bool
 vm_call_sorbet_optimizable_p(const struct rb_call_info *ci, const struct rb_call_cache *cc,
-                             const struct rb_calling_info *calling, const rb_method_sorbet_t *sorbet)
+                             const rb_method_sorbet_t *sorbet)
 {
-    /* Splat calls are generally not interesting, because they can introduce kwsplats
-     * and require extra processing anyway to resolve the splat. */
-    if (IS_ARGS_SPLAT(ci)) {
-        return SORBET_METHOD_OPT_NONE;
+    if (!vm_call_iseq_optimizable_p(ci, cc)) {
+        return false;
     }
 
-    /* Similarly for keyword splats. */
-    if (IS_ARGS_KW_SPLAT(ci)) {
-        return SORBET_METHOD_OPT_NONE;
+    /* vm_callee_setup_arg */
+    if (UNLIKELY(ci->flag & VM_CALL_KW_SPLAT)) {
+        return false;
     }
 
-    /* Protected methods are weird, so don't deal with them. */
-    if (METHOD_ENTRY_VISI(cc->me) == METHOD_VISI_PROTECTED) {
-        return SORBET_METHOD_OPT_NONE;
+    /* We only handle simple calls to functions with positional args, unlike
+     * vm_callee_setup_arg */
+    if (!vm_call_sorbet_simple_p(sorbet)) {
+        return false;
     }
 
-    /* Positional-argument-only methods are easy to optimize and very common.  But
-     * make sure we're not providing keyword args here.  */
-    if (vm_call_sorbet_simple_p(sorbet) && !IS_ARGS_KEYWORD(ci)) {
-        return SORBET_METHOD_OPT_REQ_PARAM_ONLY;
-    }
-
-    /* If we're calling a keyword-arg taking function that doesn't have other complex
-     * arguments, we can avoid turning the keyword args into a keyword splat. */
-    if (vm_call_kwarg_simple_p(sorbet) && IS_ARGS_KEYWORD(ci)) {
-        /* Because Ruby keyword args can be rolled up into keyword splats to satisfy
-         * the last positional arg, the only case we can handle is when there are
-         * exactly the right number of positional args already.
-         *
-         * vm_callee_setup_arg has another case for no keyword args getting passed,
-         * but we don't handle that yet (and if we did handle it, we'd do it in the
-         * compiled code instead of in the VM, barring major changes to how the
-         * compiled code's argument parsing works).
-         */
-        const int lead_num = sorbet->param->lead_num;
-        const int argc = calling->argc;
-        const struct rb_call_info_kw_arg *kw_arg = ((struct rb_call_info_with_kwarg *)ci)->kw_arg;
-
-        if (argc - kw_arg->keyword_len == lead_num) {
-            return SORBET_METHOD_OPT_EFFICIENT_KWARGS;
-        }
-
-        return SORBET_METHOD_OPT_NONE;
-    }
-
-    /* We have something else that we haven't added an efficient case for. */
-    return SORBET_METHOD_OPT_NONE;
+    /* This callsite is to a method that only takes positional arguments. */
+    /* TODO: change this to handle more of the cases that vm_callee_setup_arg does,
+     * like kwarg-only functions.  */
+    return true;
 }
 
 /* -- Remove empty_kw_splat In 3.0 -- */
@@ -2637,10 +2586,10 @@ vm_call_sorbet_optimizable_p(const struct rb_call_info *ci, const struct rb_call
  * Compare the ALWAYS_INLINE declaration on vm_call_iseq_setup_normal, which
  * works on the same principles.
  */
-ALWAYS_INLINE(static VALUE vm_call_sorbet_with_frame_normal(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp, struct rb_calling_info *calling, struct rb_call_data *cd, const rb_callable_method_entry_t *me, int check_kw_splat, int empty_kw_splat, int argc, int param_size, int local_size));
+ALWAYS_INLINE(static VALUE vm_call_sorbet_with_frame_normal(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp, struct rb_calling_info *calling, struct rb_call_data *cd, const rb_callable_method_entry_t *me, int check_kw_splat, int empty_kw_splat, int param_size, int local_size));
 
 static VALUE
-vm_call_sorbet_with_frame_normal(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp, struct rb_calling_info *calling, struct rb_call_data *cd, const rb_callable_method_entry_t *me, int check_kw_splat, int empty_kw_splat, int argc, int param_size, int local_size)
+vm_call_sorbet_with_frame_normal(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp, struct rb_calling_info *calling, struct rb_call_data *cd, const rb_callable_method_entry_t *me, int check_kw_splat, int empty_kw_splat, int param_size, int local_size)
 {
     const struct rb_call_info *ci = &cd->ci;
     VALUE val;
@@ -2653,6 +2602,7 @@ vm_call_sorbet_with_frame_normal(rb_execution_context_t *ec, rb_control_frame_t 
      * be accessed by Binding#local_variables and that need to be accessed by blocks/closures.
      */
     VALUE frame_type = VM_FRAME_MAGIC_CFUNC | VM_ENV_FLAG_LOCAL;
+    int argc = param_size;
 
     if (check_kw_splat) {
         if (UNLIKELY(calling->kw_splat)) {
@@ -2670,7 +2620,7 @@ vm_call_sorbet_with_frame_normal(rb_execution_context_t *ec, rb_control_frame_t 
                                                 block_handler, (VALUE)me,
                                                 0, ec->cfp->sp, local_size, sorbet->iseqptr->body->stack_max);
 
-    reg_cfp->sp -= param_size + 1;
+    reg_cfp->sp -= argc + 1;
     val = (*sorbet->func)(argc, reg_cfp->sp + 1, recv, new_cfp, calling, cd);
 
     CHECK_CFP_CONSISTENCY("vm_call_sorbet");
@@ -2689,35 +2639,7 @@ vm_call_sorbet_with_frame(rb_execution_context_t *ec, rb_control_frame_t *reg_cf
     const int check_kw_splat = 1;
     const rb_callable_method_entry_t *me = cd->cc.me;
     const rb_method_sorbet_t *sorbet = UNALIGNED_MEMBER_PTR(me->def, body.sorbet);
-    const int argc = calling->argc;
-    const int param_size = calling->argc;
-    const int locals = sorbet->iseqptr->body->local_table_size;
-    return vm_call_sorbet_with_frame_normal(ec, reg_cfp, calling, cd, me, check_kw_splat, empty_kw_splat, argc, param_size, locals);
-}
-
-static VALUE
-vm_call_sorbet_kwargs(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp, struct rb_calling_info *calling, struct rb_call_data *cd)
-{
-    const struct rb_kwarg_call_data *kcd = (void *)cd;
-    const struct rb_call_info_with_kwarg *ci_kw = &kcd->ci_kw;
-    /* We have ensured that anything going through this function won't have kwsplats. */
-    const int check_kw_splat = 0;
-    const int empty_kw_splat = 0;
-    const rb_callable_method_entry_t *me = cd->cc.me;
-    const rb_method_sorbet_t *sorbet = UNALIGNED_MEMBER_PTR(me->def, body.sorbet);
-
-    /* Similarly to the above, we have ensured that anything going through this function
-     * won't have rest args, so we don't have to splat rest args via CALLER_SETUP_ARG.
-     * We also don't have to do the IS_ARGS_KEYWORD part of CALLER_SETUP_ARG, because
-     * we explicitly want to keep the interpreter-style of keyword arg passing.
-     *
-     * We do, however, need to adjust argc to make it reflect only the positional args
-     * being passed.
-     */
-    const int argc = calling->argc - ci_kw->kw_arg->keyword_len;
-    const int param_size = calling->argc;
-    const int locals = sorbet->iseqptr->body->local_table_size;
-    return vm_call_sorbet_with_frame_normal(ec, reg_cfp, calling, cd, me, check_kw_splat, empty_kw_splat, argc, param_size, locals);
+    return vm_call_sorbet_with_frame_normal(ec, reg_cfp, calling, cd, me, check_kw_splat, empty_kw_splat, calling->argc, sorbet->iseqptr->body->local_table_size);
 }
 
 static VALUE
@@ -2751,10 +2673,7 @@ vm_call_sorbet_fast_0params_0locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    const int argc = 0;
-    const int params = 0;
-    const int locals = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, argc, params, locals);
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 0, 0);
 }
 
 static VALUE
@@ -2762,10 +2681,7 @@ vm_call_sorbet_fast_0params_1locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    const int argc = 0;
-    const int params = 0;
-    const int locals = 1;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, argc, params, locals);
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 0, 1);
 }
 
 static VALUE
@@ -2773,10 +2689,7 @@ vm_call_sorbet_fast_0params_2locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    const int argc = 0;
-    const int params = 0;
-    const int locals = 2;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, argc, params, locals);
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 0, 2);
 }
 
 static VALUE
@@ -2784,10 +2697,7 @@ vm_call_sorbet_fast_0params_3locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    const int argc = 0;
-    const int params = 0;
-    const int locals = 3;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, argc, params, locals);
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 0, 3);
 }
 
 static VALUE
@@ -2795,10 +2705,7 @@ vm_call_sorbet_fast_0params_4locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    const int argc = 0;
-    const int params = 0;
-    const int locals = 4;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, argc, params, locals);
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 0, 4);
 }
 
 static VALUE
@@ -2806,10 +2713,7 @@ vm_call_sorbet_fast_0params_5locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    const int argc = 0;
-    const int params = 0;
-    const int locals = 5;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, argc, params, locals);
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 0, 5);
 }
 
 static VALUE
@@ -2817,10 +2721,7 @@ vm_call_sorbet_fast_1params_0locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    const int argc = 1;
-    const int params = 1;
-    const int locals = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, argc, params, locals);
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 1, 0);
 }
 
 static VALUE
@@ -2828,10 +2729,7 @@ vm_call_sorbet_fast_1params_1locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    const int argc = 1;
-    const int params = 1;
-    const int locals = 1;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, argc, params, locals);
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 1, 1);
 }
 
 static VALUE
@@ -2839,10 +2737,7 @@ vm_call_sorbet_fast_1params_2locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    const int argc = 1;
-    const int params = 1;
-    const int locals = 2;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, argc, params, locals);
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 1, 2);
 }
 
 static VALUE
@@ -2850,10 +2745,7 @@ vm_call_sorbet_fast_1params_3locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    const int argc = 1;
-    const int params = 1;
-    const int locals = 3;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, argc, params, locals);
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 1, 3);
 }
 
 static VALUE
@@ -2861,10 +2753,7 @@ vm_call_sorbet_fast_1params_4locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    const int argc = 1;
-    const int params = 1;
-    const int locals = 4;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, argc, params, locals);
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 1, 4);
 }
 
 static VALUE
@@ -2872,10 +2761,7 @@ vm_call_sorbet_fast_1params_5locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    const int argc = 1;
-    const int params = 1;
-    const int locals = 5;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, argc, params, locals);
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 1, 5);
 }
 
 static VALUE
@@ -2883,10 +2769,7 @@ vm_call_sorbet_fast_2params_0locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    const int argc = 2;
-    const int params = 2;
-    const int locals = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, argc, params, locals);
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 2, 0);
 }
 
 static VALUE
@@ -2894,10 +2777,7 @@ vm_call_sorbet_fast_2params_1locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    const int argc = 2;
-    const int params = 2;
-    const int locals = 1;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, argc, params, locals);
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 2, 1);
 }
 
 static VALUE
@@ -2905,10 +2785,7 @@ vm_call_sorbet_fast_2params_2locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    const int argc = 2;
-    const int params = 2;
-    const int locals = 2;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, argc, params, locals);
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 2, 2);
 }
 
 static VALUE
@@ -2916,10 +2793,7 @@ vm_call_sorbet_fast_2params_3locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    const int argc = 2;
-    const int params = 2;
-    const int locals = 3;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, argc, params, locals);
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 2, 3);
 }
 
 static VALUE
@@ -2927,10 +2801,7 @@ vm_call_sorbet_fast_2params_4locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    const int argc = 2;
-    const int params = 2;
-    const int locals = 4;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, argc, params, locals);
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 2, 4);
 }
 
 static VALUE
@@ -2938,10 +2809,7 @@ vm_call_sorbet_fast_2params_5locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    const int argc = 2;
-    const int params = 2;
-    const int locals = 5;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, argc, params, locals);
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 2, 5);
 }
 
 static VALUE
@@ -2949,10 +2817,7 @@ vm_call_sorbet_fast_3params_0locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    const int argc = 3;
-    const int params = 3;
-    const int locals = 0;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, argc, params, locals);
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 3, 0);
 }
 
 static VALUE
@@ -2960,10 +2825,7 @@ vm_call_sorbet_fast_3params_1locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    const int argc = 3;
-    const int params = 3;
-    const int locals = 1;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, argc, params, locals);
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 3, 1);
 }
 
 static VALUE
@@ -2971,10 +2833,7 @@ vm_call_sorbet_fast_3params_2locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    const int argc = 3;
-    const int params = 3;
-    const int locals = 2;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, argc, params, locals);
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 3, 2);
 }
 
 static VALUE
@@ -2982,10 +2841,7 @@ vm_call_sorbet_fast_3params_3locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    const int argc = 3;
-    const int params = 3;
-    const int locals = 3;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, argc, params, locals);
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 3, 3);
 }
 
 static VALUE
@@ -2993,10 +2849,7 @@ vm_call_sorbet_fast_3params_4locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    const int argc = 3;
-    const int params = 3;
-    const int locals = 4;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, argc, params, locals);
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 3, 4);
 }
 
 static VALUE
@@ -3004,10 +2857,7 @@ vm_call_sorbet_fast_3params_5locals(rb_execution_context_t *ec, rb_control_frame
 {
     const int check_kw_splat = 0;
     const int empty_kw_splat = 0;
-    const int argc = 3;
-    const int params = 3;
-    const int locals = 5;
-    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, argc, params, locals);
+    return vm_call_sorbet_with_frame_normal(ec, cfp, calling, cd, cd->cc.me, check_kw_splat, empty_kw_splat, 3, 5);
 }
 
 static const vm_call_handler vm_call_sorbet_handlers[][6] = {
@@ -3058,52 +2908,42 @@ vm_call_sorbet_maybe_setup_fastpath(rb_execution_context_t *ec, rb_control_frame
     const struct rb_call_info *ci = &cd->ci;
     struct rb_call_cache *cc = &cd->cc;
     const rb_method_sorbet_t *sorbet = UNALIGNED_MEMBER_PTR(cc->me->def, body.sorbet);
-    enum sorbet_method_opt_kind kind = vm_call_sorbet_optimizable_p(ci, cc, calling, sorbet);
 
-    /* vm_call_sorbet has already been set as the fastpath before we enter this
-     * function, so we're just trying to figure out if there's something even
-     * faster that we could use as the fastpath.  If not, we can just call
-     * vm_call_sorbet here, and the fastpath code will be triggered next time.
+    /* Just take the normal path, we'll call vm_call_sorbet directly next time. */
+    if (!vm_call_sorbet_optimizable_p(ci, cc, sorbet)) {
+        return vm_call_sorbet(ec, cfp, calling, cd);
+    }
+
+    /* We know that the method we're calling takes only positional arguments.
+     * But we need to verify that the method is being passed only positional
+     * arguments and there aren't any kwarg fixups that we need to do.  We
+     * only need to do this once, cf. vm_callee_setup_arg.
      */
-    switch (kind) {
-    case SORBET_METHOD_OPT_NONE:
-        return vm_call_sorbet(ec, cfp, calling, cd);
-    case SORBET_METHOD_OPT_EFFICIENT_KWARGS:
-        CC_SET_FASTPATH(cc, vm_call_sorbet_kwargs, TRUE);
-        return vm_call_sorbet_kwargs(ec, cfp, calling, cd);
-    case SORBET_METHOD_OPT_REQ_PARAM_ONLY: {
-        /* We know that the method we're calling takes only positional arguments.
-         * But we need to verify that the method is being passed only positional
-         * arguments and there aren't any kwarg fixups that we need to do.  We
-         * only need to do this once, cf. vm_callee_setup_arg.
-         */
-        CALLER_SETUP_ARG(cfp, calling, ci);
-        int empty_kw_splat = calling->kw_splat;
-        CALLER_REMOVE_EMPTY_KW_SPLAT(cfp, calling, ci);
-        if (empty_kw_splat && calling->kw_splat) {
-            empty_kw_splat = 0;
-        }
-
-        if (UNLIKELY(calling->argc != sorbet->param->lead_num)) {
-            /* vm_callee_setup_arg calls argument_arity_error, but our iseq is not
-             * set up in the way that function expects.  We don't declare and call
-             * sorbet_raiseArity here because it's nice to have a Ruby with just
-             * the Sorbet calling convention patches applied be able to compile
-             * and run Ruby's testsuite.  Instead, just call the function "normally"
-             * and let the argument checking in the function itself handle raising
-             * the error.
-             */
-            return vm_call_sorbet_with_frame(ec, cfp, calling, cd, empty_kw_splat);
-        }
-
-        /* vm_call_method_each_type has already set the fastpath to vm_call_sorbet,
-         * which handles all of the cases above.  We've done all of those checks so that
-         * we know a different fastpath is available, which we set here.
-         */
-        CC_SET_FASTPATH(cc, vm_call_sorbet_fast_func(ci, sorbet->param->size, sorbet->iseqptr->body->local_table_size), TRUE);
-        return vm_call_sorbet(ec, cfp, calling, cd);
+    CALLER_SETUP_ARG(cfp, calling, ci);
+    int empty_kw_splat = calling->kw_splat;
+    CALLER_REMOVE_EMPTY_KW_SPLAT(cfp, calling, ci);
+    if (empty_kw_splat && calling->kw_splat) {
+        empty_kw_splat = 0;
     }
+
+    if (UNLIKELY(calling->argc != sorbet->param->lead_num)) {
+        /* vm_callee_setup_arg calls argument_arity_error, but our iseq is not
+         * set up in the way that function expects.  We don't declare and call
+         * sorbet_raiseArity here because it's nice to have a Ruby with just
+         * the Sorbet calling convention patches applied be able to compile
+         * and run Ruby's testsuite.  Instead, just call the function "normally"
+         * and let the argument checking in the function itself handle raising
+         * the error.
+         */
+        return vm_call_sorbet_with_frame(ec, cfp, calling, cd, empty_kw_splat);
     }
+
+    /* vm_call_method_each_type has already set the fastpath to vm_call_sorbet,
+     * which handles all of the cases above.  We've done all of those checks so that
+     * we know a different fastpath is available, which we set here.
+     */
+    CC_SET_FASTPATH(cc, vm_call_sorbet_fast_func(ci, sorbet->param->size, sorbet->iseqptr->body->local_table_size), TRUE);
+    return vm_call_sorbet(ec, cfp, calling, cd);
 }
 
 static VALUE
